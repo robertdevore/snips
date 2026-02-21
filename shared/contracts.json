@@ -1,0 +1,14 @@
+{
+	"version": 1,
+	"transport": "newline-json",
+	"commands": [
+		"config_update",
+		"insert_by_id",
+		"ping"
+	],
+	"events": [
+		"ack",
+		"expansion_event",
+		"status"
+	]
+}

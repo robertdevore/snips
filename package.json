@@ -1,0 +1,17 @@
+{
+	"name": "snips",
+	"private": true,
+	"version": "0.1.0",
+	"description": "Snips macOS snippet expander",
+	"workspaces": [
+		"app"
+	],
+	"scripts": {
+		"dev": "npm run dev --workspace app",
+		"dev:full": "npm run helper:build && npm run dev",
+		"build": "npm run build --workspace app",
+		"package:dmg": "npm run helper:build && npm run package:dmg --workspace app",
+		"helper:build": "cd helper && swift build -c release",
+		"helper:run": "cd helper && swift run SnipsHelper"
+	}
+}

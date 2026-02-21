@@ -1,0 +1,56 @@
+{
+	"name": "snips-app",
+	"version": "0.1.0",
+	"description": "Snips macOS snippet expansion app",
+	"author": "Snips",
+	"private": true,
+	"main": "src/main/main.js",
+	"scripts": {
+		"dev": "electron .",
+		"rebuild-native": "electron-rebuild -f -w better-sqlite3",
+		"postinstall": "npm run rebuild-native",
+		"build": "echo 'No compile step required for plain JS renderer/main'",
+		"package:dmg": "electron-builder --mac dmg",
+		"package:dir": "electron-builder --mac dir"
+	},
+	"build": {
+		"appId": "com.snips.app",
+		"productName": "Snips",
+		"files": [
+			"src/**/*",
+			"package.json"
+		],
+		"directories": {
+			"output": "dist"
+		},
+		"mac": {
+			"category": "public.app-category.productivity",
+			"target": [
+				{
+					"target": "dmg",
+					"arch": [
+						"x64",
+						"arm64"
+					]
+				}
+			]
+		},
+		"extraResources": [
+			{
+				"from": "../helper/.build",
+				"to": "helper-build",
+				"filter": [
+					"**/release/SnipsHelper"
+				]
+			}
+		]
+	},
+	"devDependencies": {
+		"@electron/rebuild": "^4.0.3",
+		"electron": "37.2.0",
+		"electron-builder": "^26.0.12"
+	},
+	"dependencies": {
+		"better-sqlite3": "^12.4.1"
+	}
+}

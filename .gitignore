@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+
+# Node
+node_modules/
+app/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Env / secrets
+.env
+.env.*
+
+# Electron / app artifacts
+app/data/
+app/dist/
+app/out/
+app/release/
+app/build/
+
+# Installers / packaged artifacts (sometimes emitted outside app/dist)
+*.dmg
+*.zip
+*.blockmap
+
+# SQLite / local state
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+
+# Swift / Xcode
+helper/.build/
+helper/.swiftpm/
+helper/DerivedData/
+
+# Editor
+.vscode/

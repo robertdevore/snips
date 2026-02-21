@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<title>Snips</title>
+	<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+	<div class="titlebar-drag"></div>
+	<div class="app-shell">
+		<aside class="sidebar">
+			<div class="brand-row">
+				<div class="brand-left">
+					<div class="brand-title">Snips</div>
+					<div class="brand-version">v0.1.0</div>
+				</div>
+				<div class="brand-actions">
+					<button id="newSnippetBtn" class="pill-btn" aria-label="New Snippet">
+						<span class="icon" aria-hidden="true" id="iconNewSnippet"></span>
+						<span class="pill-text">Snippet</span>
+					</button>
+				</div>
+			</div>
+			<div class="section-title sidebar-section section-row">
+				<span>Groups</span>
+				<button id="newGroupBtn" class="icon-only" aria-label="New Group">
+					<span class="icon" aria-hidden="true" id="iconNewGroup"></span>
+				</button>
+			</div>
+			<div id="groups"></div>
+			<div class="section-title sidebar-section status-header" id="statusHeader">
+				<span>Status</span>
+				<span id="statusChevron" class="chevron" aria-hidden="true"></span>
+			</div>
+			<div id="statusCard" class="status-card collapsed">
+				<div id="statusBody" class="status-body">
+					<div id="helperStatus">Checking helper...</div>
+					<div id="helperPath" class="helper-path"></div>
+					<div id="statusActions" class="status-actions">
+					<button id="openA11yBtn">Open Accessibility Settings</button>
+					<button id="revealHelperBtn">Reveal SnipsHelper</button>
+					<button id="requestA11yBtn">Request Accessibility Prompt</button>
+					<button id="requestInputBtn">Request Input Monitoring Prompt</button>
+					<button id="copyHelperPathBtn">Copy Helper Path</button>
+					<button id="restartHelperBtn">Restart Helper</button>
+					</div>
+				</div>
+			</div>
+		</aside>
+		<main class="main-column">
+			<header class="toolbar"></header>
+			<section class="content-grid">
+				<div class="snippet-list-wrap">
+					<input id="searchInput" class="snippet-search" placeholder="Search" />
+					<div id="snippetList" class="snippet-list"></div>
+				</div>
+				<div class="editor-wrap">
+					<div class="editor-header">
+						<h2 id="editorTitle">Snippet Editor</h2>
+						<div class="editor-toggles">
+							<button id="enabledToggle" class="icon-only" aria-label="Enabled">
+								<span class="toggle-icon" id="enabledIcon" aria-hidden="true"></span>
+							</button>
+							<button id="favoriteToggle" class="icon-only" aria-label="Favorite">
+								<span class="toggle-icon" id="favoriteIcon" aria-hidden="true"></span>
+							</button>
+						</div>
+					</div>
+					<label>Name <input id="nameInput" /></label>
+					<label>Abbreviation <input id="abbrInput" placeholder=";addr" /></label>
+					<label>Group <select id="groupSelect"></select></label>
+					<input id="enabledInput" type="checkbox" checked class="is-hidden" />
+					<input id="favoriteInput" type="checkbox" class="is-hidden" />
+					<label>Trigger
+						<select id="triggerInput">
+							<option value="immediate">Immediate</option>
+							<option value="whitespace">Whitespace</option>
+							<option value="wordBoundary">Word boundary</option>
+							<option value="enterTab">Enter/Tab</option>
+						</select>
+					</label>
+					<label>Content
+						<textarea id="contentInput" rows="10"></textarea>
+					</label>
+					<div class="macro-tools">
+						<button data-macro="[[date:short]]">Date</button>
+						<button data-macro="[[clipboard]]">Clipboard</button>
+						<button data-macro="[[fill:Label|default]]">Fill-in</button>
+						<button data-macro="[[cursor]]">Cursor</button>
+					</div>
+					<label>Tags (comma separated) <input id="tagsInput" /></label>
+					<label>Notes <textarea id="notesInput" rows="3"></textarea></label>
+					<div class="actions">
+						<button id="saveSnippetBtn" class="primary-btn">Save</button>
+						<button id="testSnippetBtn">Test expansion</button>
+						<button id="deleteSnippetBtn" class="danger">Delete</button>
+					</div>
+				</div>
+			</section>
+			<section class="panel-grid">
+				<div class="panel">
+					<h3>Settings</h3>
+					<div class="check-row"><input id="settingEnabled" type="checkbox" checked /><span>Enable expansions</span></div>
+					<label>Global hotkey <input id="settingHotkey" /></label>
+					<label>Max buffer length <input id="settingBuffer" type="number" min="50" max="500" /></label>
+					<label>Excluded app bundle IDs (comma separated) <input id="settingExcluded" /></label>
+					<div class="actions"><button id="saveSettingsBtn" class="primary-btn">Save settings</button></div>
+				</div>
+				<div class="panel">
+					<h3>Stats</h3>
+					<div id="weeklyStats" class="weekly"></div>
+					<div id="topStats"></div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<div id="groupModal" class="modal is-hidden" role="dialog" aria-modal="true">
+		<div class="backdrop" id="groupBackdrop"></div>
+		<div class="modal-card">
+			<div class="modal-title">New group</div>
+			<input id="groupNameInput" placeholder="Group name" />
+			<div class="modal-actions">
+				<button id="groupCancelBtn">Cancel</button>
+				<button id="groupCreateBtn" class="primary-btn">Create</button>
+			</div>
+		</div>
+	</div>
+
+	<div id="toastContainer" class="toast-container"></div>
+	<script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+body {
+	margin: 0;
+	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+	background: #0b1020;
+	color: #f8fafc;
+}
+
+.palette-shell {
+	padding: 12px;
+}
+
+#paletteSearch {
+	width: 100%;
+	padding: 10px;
+	border-radius: 10px;
+	border: 1px solid rgba(148, 163, 184, 0.25);
+	background: rgba(15, 23, 42, 0.72);
+	color: #f9fafb;
+	margin-bottom: 10px;
+}
+
+.item {
+	padding: 10px;
+	border: 1px solid rgba(148, 163, 184, 0.20);
+	border-radius: 8px;
+	margin-bottom: 8px;
+	cursor: pointer;
+	background: rgba(15, 23, 42, 0.45);
+}
+
+.item.active {
+	border-color: rgba(99, 102, 241, 0.9);
+	background: rgba(79, 70, 229, 0.25);
+}
+
+.meta {
+	font-size: 12px;
+	color: #9ca3af;
+}
