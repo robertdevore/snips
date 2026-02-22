@@ -82,8 +82,14 @@ class SnipsDb {
 			expandOn: 'whitespace',
 			maxBufferLength: '200',
 			globalHotkey: 'CommandOrControl+Shift+Space',
+			hotkeyOpenSnips: '',
+			hotkeyNewSnippet: '',
+			hotkeyOpenSettings: '',
+			hotkeyOpenStats: '',
 			excludedApps: '[]',
 			secureInputBehavior: 'disable',
+			userName: 'Local',
+			userAvatar: '',
 			wpm: '220',
 			charsPerWord: '6',
 			helperHost: '127.0.0.1',
@@ -100,6 +106,24 @@ class SnipsDb {
 
 	listGroups() {
 		return this.db.prepare('SELECT * FROM groups ORDER BY sortOrder ASC, name ASC').all();
+	}
+
+	getSnippetCounts() {
+		const rows = this.db.prepare(`
+			SELECT COALESCE(groupId, 'default') AS groupId, COUNT(*) AS count
+			FROM snippets
+			GROUP BY COALESCE(groupId, 'default')
+		`).all();
+		const total = this.db.prepare('SELECT COUNT(*) AS count FROM snippets').get().count;
+		const byGroup = {};
+		for (const row of rows) {
+			byGroup[row.groupId] = Number(row.count || 0);
+		}
+		return { total: Number(total || 0), byGroup };
+	}
+
+	getGroupByName(name) {
+		return this.db.prepare('SELECT * FROM groups WHERE name = ? LIMIT 1').get(name);
 	}
 
 	saveGroup(group) {
@@ -122,7 +146,11 @@ class SnipsDb {
 		this.db.prepare('DELETE FROM groups WHERE id = ? AND id != ?').run(id, fallback);
 	}
 
-	listSnippets({ query = '', groupId = null } = {}) {
+	getSnippetByAbbreviation(abbreviation) {
+		return this.db.prepare('SELECT * FROM snippets WHERE abbreviation = ? LIMIT 1').get(abbreviation);
+	}
+
+	listSnippets({ query = '', groupId = null, sort = 'updated_desc' } = {}) {
 		let sql = 'SELECT * FROM snippets WHERE 1 = 1';
 		const params = [];
 		if (groupId) {
@@ -134,7 +162,29 @@ class SnipsDb {
 			const like = `%${query}%`;
 			params.push(like, like, like);
 		}
-		sql += ' ORDER BY favorite DESC, updatedAt DESC';
+		let order = 'updatedAt DESC';
+		switch (String(sort || '')) {
+		case 'created_desc':
+			order = 'createdAt DESC';
+			break;
+		case 'created_asc':
+			order = 'createdAt ASC';
+			break;
+		case 'updated_asc':
+			order = 'updatedAt ASC';
+			break;
+		case 'name_asc':
+			order = 'name COLLATE NOCASE ASC';
+			break;
+		case 'name_desc':
+			order = 'name COLLATE NOCASE DESC';
+			break;
+		case 'updated_desc':
+		default:
+			order = 'updatedAt DESC';
+			break;
+		}
+		sql += ` ORDER BY favorite DESC, ${order}`;
 		const rows = this.db.prepare(sql).all(...params);
 		return rows.map((row) => ({ ...row, tags: this.listTags(row.id) }));
 	}
@@ -255,7 +305,12 @@ class SnipsDb {
 		);
 	}
 
-	getStats() {
+	getStats(range) {
+		const now = Date.now();
+		const defaultFrom = now - (7 * 24 * 60 * 60 * 1000);
+		const fromTs = range && range.fromTs ? Number(range.fromTs) : defaultFrom;
+		const toTs = range && range.toTs ? Number(range.toTs) : now;
+
 		const perSnippet = this.db.prepare(`
 			SELECT
 				s.id,
@@ -267,23 +322,26 @@ class SnipsDb {
 				COALESCE(SUM(e.charsSaved), 0) AS charsSavedTotal,
 				COALESCE(SUM(e.timeSavedMs), 0) AS timeSavedMsTotal
 			FROM snippets s
-			LEFT JOIN events e ON e.snippetId = s.id
+			LEFT JOIN events e
+				ON e.snippetId = s.id
+				AND e.timestamp >= ?
+				AND e.timestamp <= ?
 			GROUP BY s.id
 			ORDER BY expansionCount DESC, s.name ASC
-		`).all();
+		`).all(fromTs, toTs);
 
-		const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-		const weekly = this.db.prepare(`
+		const summary = this.db.prepare(`
 			SELECT
 				COUNT(*) AS expansions,
 				COALESCE(SUM(timeSavedMs), 0) AS timeSavedMs
 			FROM events
-			WHERE timestamp >= ?
-		`).get(weekAgo);
+			WHERE timestamp >= ? AND timestamp <= ?
+		`).get(fromTs, toTs);
 
 		return {
 			perSnippet,
-			weekly
+			summary,
+			range: { fromTs, toTs }
 		};
 	}
 

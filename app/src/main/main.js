@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, clipboard } = require('electron');
 const { SnipsDb } = require('./db');
@@ -129,8 +130,53 @@ function registerGlobalHotkey() {
 	globalShortcut.unregisterAll();
 	const settings = db.getSettings();
 	const shortcut = settings.globalHotkey || 'CommandOrControl+Shift+Space';
-	globalShortcut.register(shortcut, () => {
+	const used = {};
+
+	function reg(key, handler) {
+		const value = (key || '').trim();
+		if (!value) return;
+		if (used[value]) return;
+		used[value] = true;
+		try {
+			globalShortcut.register(value, handler);
+		} catch (_error) {
+			// Ignore invalid shortcuts
+		}
+	}
+
+	reg(shortcut, () => {
 		showPalette();
+	});
+
+	reg(settings.hotkeyOpenSnips, () => {
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.show();
+			mainWindow.focus();
+		}
+	});
+
+	reg(settings.hotkeyNewSnippet, () => {
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.show();
+			mainWindow.focus();
+			mainWindow.webContents.send('nav:show', { view: 'libraryView', action: 'newSnippet' });
+		}
+	});
+
+	reg(settings.hotkeyOpenSettings, () => {
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.show();
+			mainWindow.focus();
+			mainWindow.webContents.send('nav:show', { view: 'settingsView' });
+		}
+	});
+
+	reg(settings.hotkeyOpenStats, () => {
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.show();
+			mainWindow.focus();
+			mainWindow.webContents.send('nav:show', { view: 'statsView' });
+		}
 	});
 }
 
@@ -233,6 +279,11 @@ function ensureHelperRunning() {
 		return false;
 	}
 	try {
+		try {
+			fs.chmodSync(helperBinary, 0o755);
+		} catch (_chmodError) {
+			// Ignore
+		}
 		const child = spawn(helperBinary, [], {
 			detached: true,
 			stdio: 'ignore'
@@ -244,15 +295,51 @@ function ensureHelperRunning() {
 	}
 }
 
-function restartHelper() {
+function isHelperReachable(timeoutMs) {
 	return new Promise((resolve) => {
-		execFile('/usr/bin/pkill', ['-f', 'SnipsHelper'], () => {
-			setTimeout(() => {
-				ensureHelperRunning();
-				resolve(true);
-			}, 250);
-		});
+		const socket = new net.Socket();
+		let finished = false;
+		const done = (ok) => {
+			if (finished) return;
+			finished = true;
+			try { socket.destroy(); } catch (_e) { }
+			resolve(!!ok);
+		};
+		try {
+			socket.setTimeout(Number(timeoutMs || 250));
+			socket.once('connect', () => done(true));
+			socket.once('timeout', () => done(false));
+			socket.once('error', () => done(false));
+			socket.connect(50555, '127.0.0.1');
+		} catch (_error) {
+			done(false);
+		}
 	});
+}
+
+async function waitForHelperReachable(maxWaitMs) {
+	const deadline = Date.now() + Number(maxWaitMs || 2000);
+	while (Date.now() < deadline) {
+		// eslint-disable-next-line no-await-in-loop
+		const ok = await isHelperReachable(250);
+		if (ok) return true;
+		// eslint-disable-next-line no-await-in-loop
+		await new Promise((resolve) => setTimeout(resolve, 150));
+	}
+	return false;
+}
+
+async function restartHelper() {
+	await new Promise((resolve) => {
+		execFile('/usr/bin/pkill', ['-f', 'SnipsHelper'], () => resolve(true));
+	});
+	await new Promise((resolve) => setTimeout(resolve, 250));
+	const started = ensureHelperRunning();
+	if (!started) {
+		return { started: false, reachable: false };
+	}
+	const reachable = await waitForHelperReachable(2200);
+	return { started: true, reachable };
 }
 
 async function syncHelperConfigWithRetry() {
@@ -342,6 +429,8 @@ ipcMain.handle('groups:delete', async (_event, groupId) => {
 	return { ok: true };
 });
 
+ipcMain.handle('snippets:counts', () => db.getSnippetCounts());
+
 ipcMain.handle('snippets:list', (_event, args) => db.listSnippets(args || {}));
 ipcMain.handle('snippets:get', (_event, id) => db.getSnippet(id));
 ipcMain.handle('snippets:save', async (_event, snippet) => {
@@ -376,7 +465,149 @@ ipcMain.handle('settings:save', async (_event, settings) => {
 	return saved;
 });
 
-ipcMain.handle('stats:get', () => db.getStats());
+ipcMain.handle('import:csv', async (_event, payload) => {
+	try {
+		const groupName = (payload && payload.groupName ? String(payload.groupName) : '').trim() || 'Imported';
+		const csvText = payload && payload.csvText ? String(payload.csvText) : '';
+		if (!csvText.trim()) {
+			return { ok: false, message: 'CSV file was empty.' };
+		}
+
+		function parseCsv(text) {
+			const out = [];
+			let row = [];
+			let field = '';
+			let inQuotes = false;
+			let i = 0;
+			if (0 === text.indexOf('\uFEFF')) text = text.slice(1);
+			for (; i < text.length; i++) {
+				const ch = text[i];
+				if (inQuotes) {
+					if ('"' === ch) {
+						if ('"' === text[i + 1]) {
+							field += '"';
+							i++;
+						} else {
+							inQuotes = false;
+						}
+					} else {
+						field += ch;
+					}
+					continue;
+				}
+				if ('"' === ch) {
+					inQuotes = true;
+					continue;
+				}
+				if (',' === ch) {
+					row.push(field);
+					field = '';
+					continue;
+				}
+				if ('\n' === ch) {
+					row.push(field);
+					field = '';
+					if (row.some((v) => String(v || '').trim())) out.push(row);
+					row = [];
+					continue;
+				}
+				if ('\r' === ch) {
+					if ('\n' === text[i + 1]) i++;
+					row.push(field);
+					field = '';
+					if (row.some((v) => String(v || '').trim())) out.push(row);
+					row = [];
+					continue;
+				}
+				field += ch;
+			}
+			row.push(field);
+			if (row.some((v) => String(v || '').trim())) out.push(row);
+			return out;
+		}
+
+		function decodeEntities(input) {
+			return String(input || '')
+				.replace(/&nbsp;/g, ' ')
+				.replace(/&amp;/g, '&')
+				.replace(/&lt;/g, '<')
+				.replace(/&gt;/g, '>')
+				.replace(/&quot;/g, '"')
+				.replace(/&#39;/g, "'");
+		}
+
+		function htmlToText(html) {
+			let s = String(html || '');
+			s = s.replace(/<br\s*\/?>/gi, '\n');
+			s = s.replace(/<\/(p|div|li)>/gi, '\n');
+			s = s.replace(/<[^>]+>/g, '');
+			s = decodeEntities(s);
+			s = s.replace(/\r\n/g, '\n');
+			s = s.replace(/\n{3,}/g, '\n\n');
+			return s.trim();
+		}
+
+		function convertTextExpanderTokens(text) {
+			let s = String(text || '');
+			s = s.replace(/%\|/g, '[[cursor]]');
+			s = s.replace(/%filltext:name=([^:%]+)(?::[^%]*)?%/g, (_m, label) => {
+				const safe = String(label || '').trim();
+				return safe ? `[[fill:${safe}|]]` : '[[fill:Value|]]';
+			});
+			return s;
+		}
+
+		let rows = parseCsv(csvText);
+		if (!rows.length) {
+			return { ok: false, message: 'No rows found in CSV.' };
+		}
+		const first = rows[0].map((v) => String(v || '').trim().toLowerCase());
+		if (first[0] === 'abbreviation' && (first[1] === 'snippet' || first[1] === 'content')) {
+			rows = rows.slice(1);
+		}
+
+		let group = db.getGroupByName(groupName);
+		if (!group) {
+			group = db.saveGroup({ name: groupName });
+		}
+
+		let created = 0;
+		let updated = 0;
+		let skipped = 0;
+		for (const row of rows) {
+			const abbr = (row[0] ? String(row[0]) : '').trim();
+			const raw = row[1] ? String(row[1]) : '';
+			const label = row[2] ? String(row[2]).trim() : '';
+			if (!abbr || !raw) {
+				skipped++;
+				continue;
+			}
+			let content = htmlToText(raw);
+			content = convertTextExpanderTokens(content);
+			const name = label || abbr;
+			const existing = db.getSnippetByAbbreviation(abbr);
+			const saved = db.saveSnippet({
+				id: existing ? existing.id : null,
+				groupId: group.id,
+				name,
+				abbreviation: abbr,
+				content,
+				enabled: true,
+				favorite: false,
+				notes: ''
+			});
+			if (existing) updated++;
+			else if (saved) created++;
+		}
+
+		await syncHelperConfigWithRetry();
+		return { ok: true, groupId: group.id, groupName: group.name, created, updated, skipped };
+	} catch (error) {
+		return { ok: false, message: error && error.message ? error.message : 'Import failed.' };
+	}
+});
+
+ipcMain.handle('stats:get', (_event, range) => db.getStats(range));
 ipcMain.handle('palette:open', () => {
 	showPalette();
 	return { ok: true };
@@ -386,9 +617,19 @@ ipcMain.handle('palette:insert', async (_event, snippetId) => {
 });
 ipcMain.handle('helper:status', () => helperStatus);
 ipcMain.handle('helper:restart', async () => {
-	await restartHelper();
+	const helperBinary = findHelperBinaryPath();
+	if (!helperBinary) {
+		return { ok: false, started: false, reachable: false, helperBinary: null, message: 'Helper binary not found. Rebuild helper and repackage the app.', status: helperStatus };
+	}
+	const result = await restartHelper();
 	await syncHelperConfigWithRetry();
-	return { ok: true };
+	if (!result.started) {
+		return { ok: false, started: false, reachable: false, helperBinary, message: 'Helper failed to start (spawn failed or blocked by macOS).', status: helperStatus };
+	}
+	if (!result.reachable) {
+		return { ok: false, started: true, reachable: false, helperBinary, message: 'Helper launched but did not become reachable. It may be crashing on startup.', status: helperStatus };
+	}
+	return { ok: true, started: true, reachable: true, helperBinary, status: helperStatus };
 });
 ipcMain.handle('helper:open-a11y', async () => {
 	const { shell } = require('electron');
