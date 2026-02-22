@@ -629,22 +629,26 @@ body {
 .group-row {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	gap: 8px;
+	width: 100%;
 }
 
 .group-right {
-	display: inline-flex;
+	position: relative;
+	display: flex;
 	align-items: center;
-	gap: 6px;
+	flex: 0 0 60px;
+	width: 60px;
+	min-width: 60px;
 	justify-content: flex-end;
 }
 
 .group-count {
 	font-size: 12px;
 	color: var(--muted);
-	min-width: 18px;
+	width: 100%;
 	text-align: right;
+	transition: opacity 120ms ease;
 }
 
 .group-name {
@@ -656,24 +660,14 @@ body {
 }
 
 .group-actions {
-	position: relative;
-	width: 60px;
-	height: 28px;
-	flex: 0 0 60px;
-	justify-content: flex-end;
-	opacity: 0;
-	pointer-events: none;
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 28px;
+	inset: 0;
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	font-size: 12px;
-	color: rgba(100, 116, 139, 0.65);
-	text-align: right;
+	gap: 4px;
+	opacity: 0;
+	pointer-events: none;
 	transition: opacity 120ms ease;
 }
 
@@ -698,19 +692,19 @@ body {
 }
 
 .group-action svg {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 28px;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	justify-content: flex-end;
+	width: 16px;
+	height: 16px;
+}
+
+.group-item:hover .group-count,
+.group-item:focus-within .group-count {
 	opacity: 0;
-	pointer-events: none;
-	color: var(--accent);
-	font-weight: 700;
+}
+
+.group-item:hover .group-actions,
+.group-item:focus-within .group-actions {
+	opacity: 1;
+	pointer-events: auto;
 }
 
 .status-card {
@@ -997,25 +991,17 @@ textarea,
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow: auto;
-	padding-right: 4px;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
 }
 
-/* Hide snippet list scrollbar thumb until hover */
+.snippet-list::-webkit-scrollbar {
+	width: 0;
+	height: 0;
+}
+
 .snippet-list::-webkit-scrollbar-thumb {
 	background: transparent;
-}
-
-.snippet-list:hover::-webkit-scrollbar-thumb {
-	background: rgba(249, 115, 22, 0.35);
-	border-radius: 999px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
-}
-
-.snippet-list:hover::-webkit-scrollbar-thumb:hover {
-	background: rgba(249, 115, 22, 0.55);
-	border: 2px solid transparent;
-	background-clip: padding-box;
 }
 
 .snippet-item {
@@ -1138,18 +1124,13 @@ a,
 
 .row {
 	display: flex;
-	gap: 12px;
+	gap: 8px;
 	font-size: 12px;
 	color: rgba(100, 116, 139, 0.75);
 	min-width: 26px;
 	text-align: right;
 	transition: opacity 120ms ease;
 	align-items: center;
-
-.group-item:hover .group-count {
-	opacity: 0;
-}
-	gap: 8px;
 }
 
 .actions {
