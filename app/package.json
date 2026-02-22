@@ -10,7 +10,8 @@
 		"rebuild-native": "electron-rebuild -f -w better-sqlite3",
 		"postinstall": "npm run rebuild-native",
 		"build": "echo 'No compile step required for plain JS renderer/main'",
-		"package:dmg": "electron-builder --mac dmg",
+		"make:icns": "zsh scripts/make-icns.sh",
+		"package:dmg": "zsh scripts/package-dmg.sh",
 		"package:dir": "electron-builder --mac dir"
 	},
 	"build": {
@@ -18,13 +19,15 @@
 		"productName": "Snips",
 		"files": [
 			"src/**/*",
-			"package.json"
+			"package.json",
+			"build/icon.icns"
 		],
 		"directories": {
 			"output": "dist"
 		},
 		"mac": {
 			"category": "public.app-category.productivity",
+			"icon": "build/icon.icns",
 			"target": [
 				{
 					"target": "dmg",
