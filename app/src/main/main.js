@@ -273,7 +273,57 @@ function findHelperBinaryPath() {
 	return null;
 }
 
-function ensureHelperRunning() {
+function get_helper_connection_settings() {
+	try {
+		const settings = db ? db.getSettings() : null;
+		return {
+			host: (settings && settings.helperHost) ? settings.helperHost : '127.0.0.1',
+			port: Number((settings && settings.helperPort) ? settings.helperPort : 50555)
+		};
+	} catch (_error) {
+		return { host: '127.0.0.1', port: 50555 };
+	}
+}
+
+function isHelperReachable(timeoutMs, host, port) {
+	return new Promise((resolve) => {
+		const socket = new net.Socket();
+		let finished = false;
+		const done = (ok) => {
+			if (finished) return;
+			finished = true;
+			try { socket.destroy(); } catch (_e) { }
+			resolve(!!ok);
+		};
+		try {
+			socket.setTimeout(Number(timeoutMs || 250));
+			socket.once('connect', () => done(true));
+			socket.once('timeout', () => done(false));
+			socket.once('error', () => done(false));
+			socket.connect(Number(port || 50555), host || '127.0.0.1');
+		} catch (_error) {
+			done(false);
+		}
+	});
+}
+
+async function waitForHelperReachable(maxWaitMs, host, port) {
+	const deadline = Date.now() + Number(maxWaitMs || 2000);
+	while (Date.now() < deadline) {
+		// eslint-disable-next-line no-await-in-loop
+		const ok = await isHelperReachable(250, host, port);
+		if (ok) return true;
+		// eslint-disable-next-line no-await-in-loop
+		await new Promise((resolve) => setTimeout(resolve, 150));
+	}
+	return false;
+}
+
+async function ensureHelperRunning() {
+	const connection = get_helper_connection_settings();
+	if (await isHelperReachable(120, connection.host, connection.port)) {
+		return true;
+	}
 	const helperBinary = findHelperBinaryPath();
 	if (!helperBinary) {
 		return false;
@@ -295,50 +345,17 @@ function ensureHelperRunning() {
 	}
 }
 
-function isHelperReachable(timeoutMs) {
-	return new Promise((resolve) => {
-		const socket = new net.Socket();
-		let finished = false;
-		const done = (ok) => {
-			if (finished) return;
-			finished = true;
-			try { socket.destroy(); } catch (_e) { }
-			resolve(!!ok);
-		};
-		try {
-			socket.setTimeout(Number(timeoutMs || 250));
-			socket.once('connect', () => done(true));
-			socket.once('timeout', () => done(false));
-			socket.once('error', () => done(false));
-			socket.connect(50555, '127.0.0.1');
-		} catch (_error) {
-			done(false);
-		}
-	});
-}
-
-async function waitForHelperReachable(maxWaitMs) {
-	const deadline = Date.now() + Number(maxWaitMs || 2000);
-	while (Date.now() < deadline) {
-		// eslint-disable-next-line no-await-in-loop
-		const ok = await isHelperReachable(250);
-		if (ok) return true;
-		// eslint-disable-next-line no-await-in-loop
-		await new Promise((resolve) => setTimeout(resolve, 150));
-	}
-	return false;
-}
-
 async function restartHelper() {
 	await new Promise((resolve) => {
 		execFile('/usr/bin/pkill', ['-f', 'SnipsHelper'], () => resolve(true));
 	});
 	await new Promise((resolve) => setTimeout(resolve, 250));
-	const started = ensureHelperRunning();
+	const started = await ensureHelperRunning();
 	if (!started) {
 		return { started: false, reachable: false };
 	}
-	const reachable = await waitForHelperReachable(2200);
+	const connection = get_helper_connection_settings();
+	const reachable = await waitForHelperReachable(2200, connection.host, connection.port);
 	return { started: true, reachable };
 }
 
@@ -347,7 +364,7 @@ async function syncHelperConfigWithRetry() {
 		await syncHelperConfig();
 		return;
 	} catch (_firstError) {
-		ensureHelperRunning();
+		await ensureHelperRunning();
 		await new Promise((resolve) => setTimeout(resolve, 700));
 		try {
 			await syncHelperConfig();
@@ -408,7 +425,7 @@ app.whenReady().then(async () => {
 	setupTray();
 	registerGlobalHotkey();
 	installLaunchAgentIfPossible();
-	ensureHelperRunning();
+	await ensureHelperRunning();
 
 	await syncHelperConfigWithRetry();
 });
