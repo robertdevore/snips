@@ -150,8 +150,9 @@ rm -rf "$HOME/Library/Application Support/Snips"
 
 ## Import/export
 
-- TextExpander import is not implemented yet.
-- For now, Snips is local-only and doesn’t provide an export/import UI.
+- TextExpander CSV import is available in **Settings → Advanced → Import from TextExpander (CSV)**.
+  - You can also drag & drop multiple CSVs to import each file into a group named after its filename.
+- Snips is local-only and export is not implemented yet.
 
 ## Packaging and distribution notes (macOS)
 
