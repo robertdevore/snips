@@ -127,9 +127,10 @@ final class SnipsHelper {
 
 	func run() {
 		startCommandServer(port: 50555)
-		checkAccessibilityPermission(prompt: true)
-		checkListenEventAccess(prompt: true)
-		checkPostEventAccess(prompt: true)
+		// Never prompt automatically; only prompt when explicitly requested by the UI.
+		checkAccessibilityPermission(prompt: false)
+		checkListenEventAccess(prompt: false)
+		checkPostEventAccess(prompt: false)
 		startEventTap()
 		startPermissionMonitoring()
 		sendStatusEvent()
