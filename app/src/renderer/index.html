@@ -9,55 +9,98 @@
 	<div class="titlebar-drag"></div>
 	<div class="app-shell">
 		<aside class="sidebar">
-			<div class="brand-row">
-				<div class="brand-left">
-					<div class="brand-title">Snips</div>
-					<div class="brand-version">v0.1.0</div>
+			<div class="sidebar-header">
+				<div class="brand-row">
+					<div class="brand-left">
+						<button id="openLibraryBtn" class="brand-home" aria-label="Open library">
+							<span class="brand-title">Snips</span>
+						</button>
+						<div class="brand-version">v0.1.0</div>
+					</div>
+					<div class="brand-actions">
+						<button id="newSnippetBtn" class="pill-btn" aria-label="New Snippet">
+							<span class="icon" aria-hidden="true" id="iconNewSnippet"></span>
+							<span class="pill-text">Snippet</span>
+						</button>
+					</div>
 				</div>
-				<div class="brand-actions">
-					<button id="newSnippetBtn" class="pill-btn" aria-label="New Snippet">
-						<span class="icon" aria-hidden="true" id="iconNewSnippet"></span>
-						<span class="pill-text">Snippet</span>
+			</div>
+
+			<div class="sidebar-content">
+				<div class="section-title sidebar-section section-row">
+					<span>Groups</span>
+					<button id="newGroupBtn" class="icon-only" aria-label="New Group">
+						<span class="icon" aria-hidden="true" id="iconNewGroup"></span>
 					</button>
 				</div>
+				<div class="groups-scroll">
+					<div id="groups"></div>
+				</div>
+				<div class="section-title sidebar-section status-header" id="statusHeader">
+					<span>Status</span>
+					<span id="statusChevron" class="chevron" aria-hidden="true"></span>
+				</div>
+				<div id="statusCard" class="status-card collapsed">
+					<div id="statusBody" class="status-body">
+						<div id="helperStatus">Checking helper...</div>
+						<div id="helperPath" class="helper-path"></div>
+						<div id="statusActions" class="status-actions">
+						<button id="openA11yBtn">Open Accessibility Settings</button>
+						<button id="revealHelperBtn">Reveal SnipsHelper</button>
+						<button id="requestA11yBtn">Request Accessibility Prompt</button>
+						<button id="requestInputBtn">Request Input Monitoring Prompt</button>
+						<button id="copyHelperPathBtn">Copy Helper Path</button>
+						<button id="restartHelperBtn">Restart Helper</button>
+						</div>
+					</div>
+				</div>
 			</div>
-			<div class="section-title sidebar-section section-row">
-				<span>Groups</span>
-				<button id="newGroupBtn" class="icon-only" aria-label="New Group">
-					<span class="icon" aria-hidden="true" id="iconNewGroup"></span>
-				</button>
-			</div>
-			<div id="groups"></div>
-			<div class="section-title sidebar-section status-header" id="statusHeader">
-				<span>Status</span>
-				<span id="statusChevron" class="chevron" aria-hidden="true"></span>
-			</div>
-			<div id="statusCard" class="status-card collapsed">
-				<div id="statusBody" class="status-body">
-					<div id="helperStatus">Checking helper...</div>
-					<div id="helperPath" class="helper-path"></div>
-					<div id="statusActions" class="status-actions">
-					<button id="openA11yBtn">Open Accessibility Settings</button>
-					<button id="revealHelperBtn">Reveal SnipsHelper</button>
-					<button id="requestA11yBtn">Request Accessibility Prompt</button>
-					<button id="requestInputBtn">Request Input Monitoring Prompt</button>
-					<button id="copyHelperPathBtn">Copy Helper Path</button>
-					<button id="restartHelperBtn">Restart Helper</button>
+
+			<div class="sidebar-bottom">
+				<div class="user-card">
+					<div class="user-row">
+						<div class="avatar" id="sidebarAvatar" aria-hidden="true">👤</div>
+						<div class="user-meta">
+							<div class="user-title" id="sidebarName">Local</div>
+							<div class="user-subtitle">Snips</div>
+						</div>
+					</div>
+					<div class="user-actions">
+						<button id="openSettingsViewBtn">Settings</button>
+						<button id="openStatsViewBtn">Stats</button>
 					</div>
 				</div>
 			</div>
 		</aside>
 		<main class="main-column">
 			<header class="toolbar"></header>
-			<section class="content-grid">
-				<div class="snippet-list-wrap">
-					<input id="searchInput" class="snippet-search" placeholder="Search" />
-					<div id="snippetList" class="snippet-list"></div>
-				</div>
-				<div class="editor-wrap">
+			<section id="libraryView" class="view">
+				<section class="content-grid">
+					<div class="snippet-list-wrap">
+						<div class="snippet-list-header">
+							<div class="snippet-list-title" id="snippetCountLabel">Snippets</div>
+							<select id="snippetSortSelect" class="snippet-sort" aria-label="Sort snippets">
+								<option value="updated_desc">Recently modified</option>
+								<option value="created_desc">Recently added</option>
+								<option value="name_asc">Name (A → Z)</option>
+								<option value="name_desc">Name (Z → A)</option>
+								<option value="updated_asc">Oldest modified</option>
+								<option value="created_asc">Oldest added</option>
+							</select>
+						</div>
+						<input id="searchInput" class="snippet-search" placeholder="Search" />
+						<div id="snippetList" class="snippet-list"></div>
+					</div>
+					<div class="editor-wrap">
 					<div class="editor-header">
 						<h2 id="editorTitle">Snippet Editor</h2>
 						<div class="editor-toggles">
+							<button id="saveSnippetBtn" class="icon-only" aria-label="Save">
+								<span class="toggle-icon" id="saveIcon" aria-hidden="true"></span>
+							</button>
+							<button id="deleteSnippetBtn" class="icon-only" aria-label="Delete">
+								<span class="toggle-icon" id="deleteIcon" aria-hidden="true"></span>
+							</button>
 							<button id="enabledToggle" class="icon-only" aria-label="Enabled">
 								<span class="toggle-icon" id="enabledIcon" aria-hidden="true"></span>
 							</button>
@@ -90,25 +133,129 @@
 					</div>
 					<label>Tags (comma separated) <input id="tagsInput" /></label>
 					<label>Notes <textarea id="notesInput" rows="3"></textarea></label>
-					<div class="actions">
-						<button id="saveSnippetBtn" class="primary-btn">Save</button>
-						<button id="testSnippetBtn">Test expansion</button>
-						<button id="deleteSnippetBtn" class="danger">Delete</button>
+
+					</div>
+				</section>
+			</section>
+
+			<section id="settingsView" class="view is-hidden">
+				<div class="view-header">
+					<h2>Settings</h2>
+				</div>
+				<div class="view-inner">
+					<div class="settings-grid">
+						<div class="panel">
+							<h3>Profile</h3>
+							<div class="profile-row">
+								<div class="profile-fields">
+									<label>Name
+										<input id="settingName" placeholder="Local" />
+									</label>
+									<label>Avatar image
+										<input id="settingAvatarFile" type="file" accept="image/*" />
+									</label>
+								</div>
+								<div class="profile-avatar">
+									<div id="settingAvatarPreview" class="avatar-preview" aria-hidden="true"></div>
+								</div>
+							</div>
+						</div>
+
+						<div class="panel">
+							<h3>Performance</h3>
+							<label>Words per minute
+								<input id="settingWpm" type="number" min="60" max="500" step="1" />
+							</label>
+							<div class="check-row"><input id="settingEnabled" type="checkbox" checked /><span>Enable expansions</span></div>
+							<label>Max buffer length
+								<input id="settingBuffer" type="number" min="50" max="500" />
+							</label>
+						</div>
+
+						<div class="panel settings-span">
+							<h3>Hotkeys</h3>
+							<label>Open palette
+								<input id="settingHotkey" placeholder="CommandOrControl+Shift+Space" />
+							</label>
+							<label>Open Snips
+								<input id="settingHotkeyOpenSnips" placeholder="" />
+							</label>
+							<label>Create snippet
+								<input id="settingHotkeyNewSnippet" placeholder="" />
+							</label>
+							<label>Open Settings
+								<input id="settingHotkeyOpenSettings" placeholder="" />
+							</label>
+							<label>Open Stats
+								<input id="settingHotkeyOpenStats" placeholder="" />
+							</label>
+						</div>
+
+						<div class="panel settings-span">
+							<h3>Advanced</h3>
+							<div class="import-block">
+								<div class="import-title">Import from TextExpander (CSV)</div>
+								<div class="import-grid">
+									<div class="import-fields">
+										<label>CSV file
+											<input id="importCsvFile" type="file" accept=".csv,text/csv" multiple />
+										</label>
+										<label>Group name
+											<input id="importCsvGroupName" placeholder="Prompts" />
+										</label>
+										<div class="actions">
+											<button id="importCsvBtn">Import CSV</button>
+										</div>
+									</div>
+									<div class="import-drop">
+										<div id="importCsvDropZone" class="drop-zone">
+											<div class="drop-zone-title">Drag &amp; drop CSV files here</div>
+											<div class="drop-zone-subtitle">Drops import each CSV into a group named after its filename.</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							<label for="settingExcluded">Excluded app bundle IDs (comma separated)</label>
+							<div class="excluded-row">
+								<input id="settingExcluded" placeholder="com.apple.Terminal, com.google.Chrome" />
+								<button id="saveSettingsBtn" class="primary-btn">Save settings</button>
+							</div>
+						</div>
 					</div>
 				</div>
 			</section>
-			<section class="panel-grid">
-				<div class="panel">
-					<h3>Settings</h3>
-					<div class="check-row"><input id="settingEnabled" type="checkbox" checked /><span>Enable expansions</span></div>
-					<label>Global hotkey <input id="settingHotkey" /></label>
-					<label>Max buffer length <input id="settingBuffer" type="number" min="50" max="500" /></label>
-					<label>Excluded app bundle IDs (comma separated) <input id="settingExcluded" /></label>
-					<div class="actions"><button id="saveSettingsBtn" class="primary-btn">Save settings</button></div>
+
+			<section id="statsView" class="view is-hidden">
+				<div class="view-header">
+					<h2>Stats</h2>
 				</div>
 				<div class="panel">
-					<h3>Stats</h3>
+					<div class="stats-controls">
+						<select id="statsRangeSelect">
+							<option value="7d">Last 7 days</option>
+							<option value="30d">Last 30 days</option>
+							<option value="last_month">Last month</option>
+							<option value="this_month">This month</option>
+							<option value="custom">Custom range</option>
+						</select>
+						<div id="statsCustomRange" class="stats-custom is-hidden">
+							<input id="statsFrom" type="date" />
+							<input id="statsTo" type="date" />
+							<button id="statsApplyBtn" class="primary-btn">Apply</button>
+						</div>
+					</div>
 					<div id="weeklyStats" class="weekly"></div>
+					<div class="stats-charts" aria-hidden="false">
+						<div class="chart-card">
+							<div class="chart-title">Top snippets</div>
+							<canvas id="statsBarChart" class="chart-canvas" role="img" aria-label="Bar chart of top snippet usage"></canvas>
+						</div>
+						<div class="chart-card">
+							<div class="chart-title">Usage share</div>
+							<canvas id="statsPieChart" class="chart-canvas" role="img" aria-label="Pie chart of snippet usage share"></canvas>
+							<div id="statsPieLegend" class="chart-legend" aria-hidden="true"></div>
+						</div>
+					</div>
 					<div id="topStats"></div>
 				</div>
 			</section>
