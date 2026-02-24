@@ -193,11 +193,11 @@ final class SnipsHelper {
 
 	private func handle(connection: NWConnection) {
 		connection.start(queue: queue)
-		receiveLine(connection: connection)
+		receiveLine(connection: connection, partial: Data())
 	}
 
-	private func receiveLine(connection: NWConnection) {
-		connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, isComplete, error in
+	private func receiveLine(connection: NWConnection, partial: Data) {
+		connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
 			guard let self = self else {
 				connection.cancel()
 				return
@@ -207,19 +207,37 @@ final class SnipsHelper {
 				connection.cancel()
 				return
 			}
-			guard let data = data, !data.isEmpty else {
+			let chunk = data ?? Data()
+			var combined = partial
+			if !chunk.isEmpty {
+				combined.append(chunk)
+			}
+			guard !combined.isEmpty else {
 				if isComplete {
 					connection.cancel()
 				}
 				return
 			}
-			let text = String(decoding: data, as: UTF8.self)
-			let line = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? ""
-			let response = self.processCommand(line)
-			let out = Data((response + "\n").utf8)
-			connection.send(content: out, completion: .contentProcessed { _ in
-				connection.cancel()
-			})
+			if let newlineIndex = combined.firstIndex(of: 0x0A) {
+				let lineData = combined.prefix(upTo: newlineIndex)
+				let line = String(decoding: lineData, as: UTF8.self)
+				let response = self.processCommand(line)
+				let out = Data((response + "\n").utf8)
+				connection.send(content: out, completion: .contentProcessed { _ in
+					connection.cancel()
+				})
+				return
+			}
+			if isComplete {
+				let line = String(decoding: combined, as: UTF8.self)
+				let response = self.processCommand(line)
+				let out = Data((response + "\n").utf8)
+				connection.send(content: out, completion: .contentProcessed { _ in
+					connection.cancel()
+				})
+				return
+			}
+			self.receiveLine(connection: connection, partial: combined)
 		}
 	}
 
@@ -390,7 +408,9 @@ final class SnipsHelper {
 		}
 		if isSecureInputEnabled() {
 			sendStatusEvent()
-			return Unmanaged.passUnretained(event)
+			if "ignore" != settings.secureInputBehavior {
+				return Unmanaged.passUnretained(event)
+			}
 		}
 		if isExcludedFrontmostApp() {
 			return Unmanaged.passUnretained(event)
@@ -720,9 +740,15 @@ final class SnipsHelper {
 		let pasteboard = NSPasteboard.general
 		let previous = pasteboard.string(forType: .string)
 		pasteboard.clearContents()
-		pasteboard.setString(text, forType: .string)
+		let didSet = pasteboard.setString(text, forType: .string)
+		if !didSet {
+			return
+		}
 		sendModifiedKey(keyCode: 9, flags: .maskCommand)
-		usleep(140000)
+		// Give the target app time to consume the pasteboard. On modern macOS this
+		// can take longer than ~100ms, and restoring the previous clipboard too
+		// quickly causes the old clipboard contents to be pasted instead.
+		usleep(650000)
 		pasteboard.clearContents()
 		if let previous = previous, !previous.isEmpty {
 			pasteboard.setString(previous, forType: .string)
