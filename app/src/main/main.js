@@ -219,6 +219,7 @@ function findHelperBinaryPath() {
 		const userResourcesDir = path.join(userAppPath, 'Contents', 'Resources');
 		const userHelperPath = path.join(userMacOsDir, 'SnipsHelper');
 		const userInfoPlistPath = path.join(userAppPath, 'Contents', 'Info.plist');
+		let modifiedUserHelperApp = false;
 		const sourcePreferred = ('arm64' === process.arch)
 			? [packagedArm, devArm, packagedX64, devX64, devFallback]
 			: [packagedX64, devX64, packagedArm, devArm, devFallback];
@@ -232,14 +233,10 @@ function findHelperBinaryPath() {
 		if (source) {
 			fs.mkdirSync(userMacOsDir, { recursive: true });
 			fs.mkdirSync(userResourcesDir, { recursive: true });
-			let shouldCopy = !fs.existsSync(userHelperPath);
-			if (!shouldCopy) {
-				try {
-					shouldCopy = fs.statSync(source).size !== fs.statSync(userHelperPath).size;
-				} catch (_error) {
-					shouldCopy = true;
-				}
-			}
+			// Important: if we overwrite the helper binary after the user grants
+			// Accessibility/Input Monitoring, macOS can treat it like a new binary and
+			// silently drop the grant. Only copy on first install.
+			const shouldCopy = !fs.existsSync(userHelperPath);
 			if (shouldCopy) {
 				fs.copyFileSync(source, userHelperPath);
 				try {
@@ -247,16 +244,20 @@ function findHelperBinaryPath() {
 				} catch (_error) {
 					// Ignore
 				}
+				modifiedUserHelperApp = true;
 			}
 			if (!fs.existsSync(userInfoPlistPath)) {
 				const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>CFBundleDevelopmentRegion</key>\n\t<string>en</string>\n\t<key>CFBundleExecutable</key>\n\t<string>SnipsHelper</string>\n\t<key>CFBundleIdentifier</key>\n\t<string>com.snips.helper</string>\n\t<key>CFBundleInfoDictionaryVersion</key>\n\t<string>6.0</string>\n\t<key>CFBundleName</key>\n\t<string>SnipsHelper</string>\n\t<key>CFBundlePackageType</key>\n\t<string>APPL</string>\n\t<key>CFBundleShortVersionString</key>\n\t<string>0.2.0</string>\n\t<key>CFBundleVersion</key>\n\t<string>0.2.0</string>\n\t<key>LSUIElement</key>\n\t<true/>\n</dict>\n</plist>\n`;
 				fs.mkdirSync(path.dirname(userInfoPlistPath), { recursive: true });
 				fs.writeFileSync(userInfoPlistPath, plist, 'utf8');
+				modifiedUserHelperApp = true;
 			}
-			try {
-				execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', userAppPath], { stdio: 'ignore' });
-			} catch (_error) {
-				// Ignore
+			if (modifiedUserHelperApp) {
+				try {
+					execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', userAppPath], { stdio: 'ignore' });
+				} catch (_error) {
+					// Ignore
+				}
 			}
 			if (fs.existsSync(userHelperPath)) {
 				userAppHelperBinary = userHelperPath;
