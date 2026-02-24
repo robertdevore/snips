@@ -186,6 +186,18 @@ pkill -f SnipsHelper
 
 Then re-open Snips from `/Applications` and click **Status → Restart Helper**.
 
+### Permissions look enabled, but helper still reports missing
+
+On some macOS versions, Accessibility and/or Input Monitoring can look enabled in System Settings, but SnipsHelper still reports them as missing (no event tap, no expansions).
+
+Fix:
+
+1. Quit Snips.
+2. System Settings → Privacy & Security:
+	- Accessibility: remove **Snips** and **SnipsHelper.app** if present, then add them back and enable.
+	- Input Monitoring: remove **Snips** and **SnipsHelper.app** if present, then add them back and enable.
+3. Re-open Snips from `/Applications` and click **Status → Restart Helper**.
+
 ### Secure Input active
 
 Some apps/fields (especially password contexts) enable secure input. Snips will not read/expand while secure input is active.
