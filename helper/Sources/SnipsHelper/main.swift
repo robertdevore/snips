@@ -272,13 +272,13 @@ final class SnipsHelper {
 				if let snippetIdAny = envelope.payload["snippetId"],
 				   let snippetId = snippetIdAny.value as? String,
 				   let snippet = snippetById[snippetId] {
-					expand(snippet: snippet, typedLength: 0)
+					expand(snippet: snippet, typedLength: 0, suppressCurrentKey: false)
 					return jsonResponse(["ok": true])
 				}
 				if let payloadAny = envelope.payload["payload"]?.value as? [String: Any],
 				   let snippetId = payloadAny["snippetId"] as? String,
 				   let snippet = snippetById[snippetId] {
-					expand(snippet: snippet, typedLength: 0)
+					expand(snippet: snippet, typedLength: 0, suppressCurrentKey: false)
 					return jsonResponse(["ok": true])
 				}
 				return jsonResponse(["ok": false, "message": "Snippet not found"])
@@ -470,10 +470,10 @@ final class SnipsHelper {
 			let targetBuffer = isDelimiter ? typedWithoutDelimiter : buffer
 			if targetBuffer.hasSuffix(abbr) {
 				if shouldExpand(snippet: snippet, lastTyped: typed, isDelimiter: isDelimiter) {
-					let hasFill = snippet.content.contains("[[fill:")
-					expand(snippet: snippet, typedLength: abbr.count)
+					let suppressCurrentKey = "immediate" == snippet.triggerMode
+					expand(snippet: snippet, typedLength: abbr.count, suppressCurrentKey: suppressCurrentKey)
 					buffer = ""
-					return ("immediate" == snippet.triggerMode) && !hasFill
+					return suppressCurrentKey
 				}
 			}
 		}
@@ -507,7 +507,7 @@ final class SnipsHelper {
 		}
 	}
 
-	private func expand(snippet: Snippet, typedLength: Int) {
+	private func expand(snippet: Snippet, typedLength: Int, suppressCurrentKey: Bool) {
 		isInjecting = true
 		defer {
 			isInjecting = false
@@ -515,12 +515,7 @@ final class SnipsHelper {
 		let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
 		let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 		let hasFill = snippet.content.contains("[[fill:")
-		let deleteCount: Int
-		if "immediate" == snippet.triggerMode && !hasFill {
-			deleteCount = max(0, typedLength - 1)
-		} else {
-			deleteCount = typedLength
-		}
+		let deleteCount = suppressCurrentKey ? max(0, typedLength - 1) : typedLength
 		let output: String
 		if hasFill {
 			let fields = extractFillFields(snippet.content)
@@ -745,13 +740,13 @@ final class SnipsHelper {
 			return
 		}
 		sendModifiedKey(keyCode: 9, flags: .maskCommand)
-		// Give the target app time to consume the pasteboard. On modern macOS this
-		// can take longer than ~100ms, and restoring the previous clipboard too
-		// quickly causes the old clipboard contents to be pasted instead.
-		usleep(650000)
-		pasteboard.clearContents()
-		if let previous = previous, !previous.isEmpty {
-			pasteboard.setString(previous, forType: .string)
+		// Restore clipboard asynchronously after the paste has had time to complete.
+		// Restoring too early can cause the previously copied value to be pasted.
+		DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+			pasteboard.clearContents()
+			if let previous = previous, !previous.isEmpty {
+				pasteboard.setString(previous, forType: .string)
+			}
 		}
 	}
 
