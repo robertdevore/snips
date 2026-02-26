@@ -49,7 +49,10 @@ class HelperBridge {
 		return new Promise((resolve, reject) => {
 			const socket = new net.Socket();
 			let response = '';
-			socket.setTimeout(1200);
+			// Large snippet libraries can produce config payloads >100KB and take longer
+			// than 1.2s end-to-end on some machines. A short timeout leaves the helper
+			// running but unsynced (e.g. "Snippet not found" on insert_by_id).
+			socket.setTimeout(5000);
 			socket.connect(this.port, this.host, () => {
 				socket.write(`${JSON.stringify(command)}\n`);
 			});
