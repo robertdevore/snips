@@ -31,7 +31,7 @@ Snips is split into three components:
 1. Electron app stores snippets/settings/events in SQLite (`better-sqlite3`).
 2. Electron sends snippets + settings to helper over localhost TCP (`127.0.0.1:50555`, newline-delimited JSON).
 3. Helper captures keystrokes via `CGEventTap`, keeps a short rolling buffer, and matches abbreviations.
-4. On match, helper deletes abbreviation and inserts rendered content via pasteboard + `Cmd+V`.
+4. On match, helper deletes abbreviation and inserts rendered content by simulated Unicode typing (clipboard remains unchanged).
 5. Helper posts expansion events/status back to Electron (`http://127.0.0.1:50556/helper-event`).
 6. Electron records events and updates per-snippet + weekly stats.
 

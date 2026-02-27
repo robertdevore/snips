@@ -528,7 +528,7 @@ final class SnipsHelper {
 		refocusFrontmost(pid: frontmostPid, bundleId: frontmostBundleId)
 		sendBackspaces(count: deleteCount)
 		usleep(90000)
-		insertByPasteboard(output)
+		insertByTyping(output)
 		emitExpansionEvent(snippet: snippet, output: output)
 	}
 
@@ -731,23 +731,37 @@ final class SnipsHelper {
 		}
 	}
 
-	private func insertByPasteboard(_ text: String) {
-		let pasteboard = NSPasteboard.general
-		let previous = pasteboard.string(forType: .string)
-		pasteboard.clearContents()
-		let didSet = pasteboard.setString(text, forType: .string)
-		if !didSet {
+	private func insertByTyping(_ text: String) {
+		guard !text.isEmpty else {
 			return
 		}
-		sendModifiedKey(keyCode: 9, flags: .maskCommand)
-		// Restore clipboard asynchronously after the paste has had time to complete.
-		// Restoring too early can cause the previously copied value to be pasted.
-		DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-			pasteboard.clearContents()
-			if let previous = previous, !previous.isEmpty {
-				pasteboard.setString(previous, forType: .string)
-			}
+
+		for character in text {
+			sendUnicodeCharacter(character)
 		}
+	}
+
+	private func sendUnicodeCharacter(_ character: Character) {
+		let characterString = String(character)
+		let unicodeScalars = Array(characterString.utf16)
+		guard !unicodeScalars.isEmpty else {
+			return
+		}
+		guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+		      let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+			return
+		}
+
+		unicodeScalars.withUnsafeBufferPointer { pointer in
+			guard let baseAddress = pointer.baseAddress else {
+				return
+			}
+			down.keyboardSetUnicodeString(stringLength: pointer.count, unicodeString: baseAddress)
+			up.keyboardSetUnicodeString(stringLength: pointer.count, unicodeString: baseAddress)
+		}
+
+		down.post(tap: .cghidEventTap)
+		up.post(tap: .cghidEventTap)
 	}
 
 	private func sendKey(keyCode: CGKeyCode) {
@@ -755,17 +769,6 @@ final class SnipsHelper {
 		      let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
 			return
 		}
-		down.post(tap: .cghidEventTap)
-		up.post(tap: .cghidEventTap)
-	}
-
-	private func sendModifiedKey(keyCode: CGKeyCode, flags: CGEventFlags) {
-		guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
-		      let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
-			return
-		}
-		down.flags = flags
-		up.flags = flags
 		down.post(tap: .cghidEventTap)
 		up.post(tap: .cghidEventTap)
 	}
