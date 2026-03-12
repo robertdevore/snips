@@ -40,6 +40,20 @@ function createMainWindow() {
 	mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 }
 
+function showMainWindow() {
+	if (!mainWindow || mainWindow.isDestroyed()) {
+		createMainWindow();
+	}
+	if (mainWindow.isMinimized()) {
+		mainWindow.restore();
+	}
+	if (!mainWindow.isVisible()) {
+		mainWindow.show();
+	} else {
+		mainWindow.focus();
+	}
+}
+
 function createPaletteWindow() {
 	paletteWindow = new BrowserWindow({
 		width: 560,
@@ -88,7 +102,7 @@ function refreshTray() {
 	const stateLabel = helperStatus.secureInput ? 'Secure Input active' : (helperStatus.running ? 'Running' : 'Helper offline');
 	tray.setToolTip(`Snips - ${stateLabel}`);
 	const contextMenu = Menu.buildFromTemplate([
-		{ label: 'Open Snips', click: () => mainWindow.show() },
+		{ label: 'Open Snips', click: () => showMainWindow() },
 		{ label: 'Open Palette', click: () => showPalette() },
 		{ type: 'separator' },
 		{
@@ -114,7 +128,7 @@ function setupTray() {
 	icon.setTemplateImage(true);
 	tray = new Tray(icon);
 	tray.on('click', () => {
-		mainWindow.show();
+		showMainWindow();
 	});
 	refreshTray();
 }
@@ -149,34 +163,22 @@ function registerGlobalHotkey() {
 	});
 
 	reg(settings.hotkeyOpenSnips, () => {
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.show();
-			mainWindow.focus();
-		}
+		showMainWindow();
 	});
 
 	reg(settings.hotkeyNewSnippet, () => {
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.show();
-			mainWindow.focus();
-			mainWindow.webContents.send('nav:show', { view: 'libraryView', action: 'newSnippet' });
-		}
+		showMainWindow();
+		mainWindow.webContents.send('nav:show', { view: 'libraryView', action: 'newSnippet' });
 	});
 
 	reg(settings.hotkeyOpenSettings, () => {
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.show();
-			mainWindow.focus();
-			mainWindow.webContents.send('nav:show', { view: 'settingsView' });
-		}
+		showMainWindow();
+		mainWindow.webContents.send('nav:show', { view: 'settingsView' });
 	});
 
 	reg(settings.hotkeyOpenStats, () => {
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.show();
-			mainWindow.focus();
-			mainWindow.webContents.send('nav:show', { view: 'statsView' });
-		}
+		showMainWindow();
+		mainWindow.webContents.send('nav:show', { view: 'statsView' });
 	});
 }
 
@@ -434,6 +436,10 @@ app.whenReady().then(async () => {
 	await ensureHelperRunning();
 
 	await syncHelperConfigWithRetry();
+});
+
+app.on('activate', () => {
+	showMainWindow();
 });
 
 app.on('will-quit', () => {
