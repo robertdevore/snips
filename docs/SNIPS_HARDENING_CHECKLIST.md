@@ -838,7 +838,7 @@ Don't over-engineer. A simple inline note next to the macro buttons or a one-tim
 
 ### SN-027: Add helper binary integrity verification
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Clipboard & Expansion  
 **Size:** S  
 **Risk:** Medium  
@@ -927,7 +927,7 @@ Reuse the same save dialog pattern as snippet export (SN-015). Keep it simple â€
 
 ### SN-030: Add time saved formula review and documentation
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Stats & Analytics  
 **Size:** XS  
 **Risk:** Low  
@@ -1622,7 +1622,7 @@ Use `electron-mocha` or Playwright's Electron support. Tests should use a tempor
 
 ### SN-052: Add architecture documentation
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Docs  
 **Size:** S  
 **Risk:** Low  
@@ -1649,7 +1649,7 @@ Use Mermaid diagrams where helpful. Keep it concise â€” this is a reference doc,
 
 ### SN-053: Add SECURITY.md
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Docs  
 **Size:** XS  
 **Risk:** Low  
@@ -1674,7 +1674,7 @@ Follow standard SECURITY.md template. Include contact method for private vulnera
 
 ### SN-054: Add CONTRIBUTING.md
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Docs  
 **Size:** XS  
 **Risk:** Low  
