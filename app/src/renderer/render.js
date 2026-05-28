@@ -129,6 +129,15 @@ export function renderGroups() {
 
 export function renderSnippets() {
 	els.snippetList.innerHTML = '';
+
+	if (!state.snippets.length) {
+		const hasSearch = els.searchInput && String(els.searchInput.value || '').trim();
+		els.snippetList.innerHTML = hasSearch
+			? '<div class="empty-state">No snippets match your search.</div>'
+			: '<div class="empty-state">No snippets yet. Create one with the + Snippet button.</div>';
+		return;
+	}
+
 	for (const snippet of state.snippets) {
 		const item = document.createElement('div');
 		item.className = `snippet-item${snippet.id === state.selectedSnippetId ? ' active' : ''}`;
@@ -377,7 +386,7 @@ export async function loadStats(rangeOverride) {
 			return `<tr><td>${row.abbreviation}</td><td>${row.expansionCount}</td><td>${formatDurationMs(row.timeSavedMsTotal || 0)}</td></tr>`;
 		})
 		.join('');
-	els.topStats.innerHTML = `<table class="stats-table"><thead><tr><th>Snippet</th><th>Uses</th><th>Saved</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No stats yet</td></tr>'}</tbody></table>`;
+	els.topStats.innerHTML = `<table class="stats-table"><thead><tr><th>Snippet</th><th>Uses</th><th>Saved</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty-state">No usage data yet. Start using snippets to see stats.</td></tr>'}</tbody></table>`;
 }
 
 // --- Helper status ---

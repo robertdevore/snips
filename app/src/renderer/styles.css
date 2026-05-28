@@ -93,6 +93,13 @@ body {
 	transition: opacity 150ms ease;
 }
 
+.empty-state {
+	padding: 40px 20px;
+	text-align: center;
+	color: var(--muted);
+	font-size: 14px;
+}
+
 .titlebar-drag {
 	position: fixed;
 	top: 0;
