@@ -124,7 +124,7 @@ This is the largest and most important Phase 1 task. Use ES modules (the Electro
 
 ### SN-004: Extract IPC handler modules from `main.js`
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** M  
 **Risk:** Medium  
@@ -134,6 +134,20 @@ This is the largest and most important Phase 1 task. Use ES modules (the Electro
 - `app/src/main/main.js` → split
 - New: `app/src/main/ipc-handlers.js`
 - New: `app/src/main/import-csv.js`
+
+**Acceptance criteria:**
+- [x] All `ipcMain.handle(...)` calls extracted to `ipc-handlers.js`
+- [x] CSV import parsing logic extracted to `import-csv.js` (reused by IPC handler)
+- [x] `main.js` only contains: window creation, tray, global shortcuts, helper lifecycle, app events
+- [x] App functionality is identical after split
+
+**Implementation notes:**
+- Created `import-csv.js` with parseCsv, decodeEntities, htmlToText, convertTextExpanderTokens, and importCsv functions.
+- Created `ipc-handlers.js` exporting `registerHandlers(deps)` that registers all 17 IPC handlers.
+- `main.js` now imports only `registerHandlers` from `ipc-handlers.js` and calls it after initialization.
+- Removed `ipcMain`, `clipboard`, `extractFillFields`, `renderTemplate` imports from main.js.
+- `main.js` reduced from ~830 to ~492 lines. All IPC logic cleanly separated.
+- `npm run lint` — 0 errors, 0 warnings. `npm run format:check` — clean.
 
 **Acceptance criteria:**
 - [ ] All `ipcMain.handle(...)` calls extracted to `ipc-handlers.js`

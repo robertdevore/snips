@@ -2,10 +2,10 @@ const path = require('path');
 const fs = require('fs');
 const net = require('net');
 const { spawn, execFile, execFileSync } = require('child_process');
-const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage } = require('electron');
 const { SnipsDb } = require('./db');
 const { HelperBridge } = require('./helper-bridge');
-const { extractFillFields, renderTemplate } = require('./template-renderer');
+const { registerHandlers } = require('./ipc-handlers');
 
 let mainWindow;
 let paletteWindow;
@@ -466,6 +466,21 @@ app.whenReady().then(async () => {
 	await ensureHelperRunning();
 
 	await syncHelperConfigWithRetry();
+
+	registerHandlers({
+		db,
+		helperBridge,
+		helperStatus,
+		syncHelperConfig,
+		syncHelperConfigWithRetry,
+		registerGlobalHotkey,
+		refreshTray,
+		showPalette,
+		findHelperBinaryPath,
+		restartHelper,
+		mainWindow,
+		fillWindow
+	});
 });
 
 app.on('activate', () => {
@@ -474,330 +489,4 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
 	globalShortcut.unregisterAll();
-});
-
-ipcMain.handle('groups:list', () => db.listGroups());
-ipcMain.handle('groups:save', async (_event, group) => {
-	const saved = db.saveGroup(group);
-	await syncHelperConfigWithRetry();
-	return saved;
-});
-ipcMain.handle('groups:delete', async (_event, groupId) => {
-	db.deleteGroup(groupId);
-	await syncHelperConfig().catch(() => {});
-	return { ok: true };
-});
-
-ipcMain.handle('snippets:counts', () => db.getSnippetCounts());
-
-ipcMain.handle('snippets:list', (_event, args) => db.listSnippets(args || {}));
-ipcMain.handle('snippets:get', (_event, id) => db.getSnippet(id));
-ipcMain.handle('snippets:save', async (_event, snippet) => {
-	const saved = db.saveSnippet(snippet);
-	await syncHelperConfigWithRetry();
-	return saved;
-});
-ipcMain.handle('snippets:delete', async (_event, id) => {
-	db.deleteSnippet(id);
-	await syncHelperConfigWithRetry();
-	return { ok: true };
-});
-ipcMain.handle('snippets:test-render', async (_event, snippet) => {
-	const fillValues = {};
-	const fields = extractFillFields(snippet.content || '');
-	for (const field of fields) {
-		fillValues[field.label] = field.defaultValue;
-	}
-	const rendered = renderTemplate(snippet.content || '', {
-		clipboard: clipboard.readText(),
-		fillValues
-	});
-	return { rendered };
-});
-
-ipcMain.handle('settings:get', () => db.getSettings());
-ipcMain.handle('settings:save', async (_event, settings) => {
-	const saved = db.saveSettings(settings);
-	registerGlobalHotkey();
-	await syncHelperConfigWithRetry();
-	refreshTray();
-	return saved;
-});
-
-ipcMain.handle('import:csv', async (_event, payload) => {
-	try {
-		const groupName = (payload && payload.groupName ? String(payload.groupName) : '').trim() || 'Imported';
-		const csvText = payload && payload.csvText ? String(payload.csvText) : '';
-		if (!csvText.trim()) {
-			return { ok: false, message: 'CSV file was empty.' };
-		}
-
-		function parseCsv(text) {
-			const out = [];
-			let row = [];
-			let field = '';
-			let inQuotes = false;
-			let i = 0;
-			if (0 === text.indexOf('\uFEFF')) text = text.slice(1);
-			for (; i < text.length; i++) {
-				const ch = text[i];
-				if (inQuotes) {
-					if ('"' === ch) {
-						if ('"' === text[i + 1]) {
-							field += '"';
-							i++;
-						} else {
-							inQuotes = false;
-						}
-					} else {
-						field += ch;
-					}
-					continue;
-				}
-				if ('"' === ch) {
-					inQuotes = true;
-					continue;
-				}
-				if (',' === ch) {
-					row.push(field);
-					field = '';
-					continue;
-				}
-				if ('\n' === ch) {
-					row.push(field);
-					field = '';
-					if (row.some((v) => String(v || '').trim())) out.push(row);
-					row = [];
-					continue;
-				}
-				if ('\r' === ch) {
-					if ('\n' === text[i + 1]) i++;
-					row.push(field);
-					field = '';
-					if (row.some((v) => String(v || '').trim())) out.push(row);
-					row = [];
-					continue;
-				}
-				field += ch;
-			}
-			row.push(field);
-			if (row.some((v) => String(v || '').trim())) out.push(row);
-			return out;
-		}
-
-		function decodeEntities(input) {
-			return String(input || '')
-				.replace(/&nbsp;/g, ' ')
-				.replace(/&amp;/g, '&')
-				.replace(/&lt;/g, '<')
-				.replace(/&gt;/g, '>')
-				.replace(/&quot;/g, '"')
-				.replace(/&#39;/g, "'");
-		}
-
-		function htmlToText(html) {
-			let s = String(html || '');
-			s = s.replace(/<br\s*\/?>/gi, '\n');
-			s = s.replace(/<\/(p|div|li)>/gi, '\n');
-			s = s.replace(/<[^>]+>/g, '');
-			s = decodeEntities(s);
-			s = s.replace(/\r\n/g, '\n');
-			s = s.replace(/\n{3,}/g, '\n\n');
-			return s.trim();
-		}
-
-		function convertTextExpanderTokens(text) {
-			let s = String(text || '');
-			s = s.replace(/%\|/g, '[[cursor]]');
-			s = s.replace(/%filltext:name=([^:%]+)(?::[^%]*)?%/g, (_m, label) => {
-				const safe = String(label || '').trim();
-				return safe ? `[[fill:${safe}|]]` : '[[fill:Value|]]';
-			});
-			return s;
-		}
-
-		let rows = parseCsv(csvText);
-		if (!rows.length) {
-			return { ok: false, message: 'No rows found in CSV.' };
-		}
-		const first = rows[0].map((v) =>
-			String(v || '')
-				.trim()
-				.toLowerCase()
-		);
-		if (first[0] === 'abbreviation' && (first[1] === 'snippet' || first[1] === 'content')) {
-			rows = rows.slice(1);
-		}
-
-		let group = db.getGroupByName(groupName);
-		if (!group) {
-			group = db.saveGroup({ name: groupName });
-		}
-
-		let created = 0;
-		let updated = 0;
-		let skipped = 0;
-		for (const row of rows) {
-			const abbr = (row[0] ? String(row[0]) : '').trim();
-			const raw = row[1] ? String(row[1]) : '';
-			const label = row[2] ? String(row[2]).trim() : '';
-			if (!abbr || !raw) {
-				skipped++;
-				continue;
-			}
-			let content = htmlToText(raw);
-			content = convertTextExpanderTokens(content);
-			const name = label || abbr;
-			const existing = db.getSnippetByAbbreviation(abbr);
-			const saved = db.saveSnippet({
-				id: existing ? existing.id : null,
-				groupId: group.id,
-				name,
-				abbreviation: abbr,
-				content,
-				enabled: true,
-				favorite: false,
-				notes: ''
-			});
-			if (existing) updated++;
-			else if (saved) created++;
-		}
-
-		await syncHelperConfigWithRetry();
-		return { ok: true, groupId: group.id, groupName: group.name, created, updated, skipped };
-	} catch (error) {
-		return { ok: false, message: error && error.message ? error.message : 'Import failed.' };
-	}
-});
-
-ipcMain.handle('stats:get', (_event, range) => db.getStats(range));
-ipcMain.handle('palette:open', () => {
-	showPalette();
-	return { ok: true };
-});
-ipcMain.handle('palette:insert', async (_event, snippetId) => {
-	return helperBridge.insertById(snippetId).catch(() => ({ ok: false, message: 'Helper unavailable' }));
-});
-ipcMain.handle('helper:status', () => helperStatus);
-ipcMain.handle('helper:restart', async () => {
-	const helperBinary = findHelperBinaryPath();
-	if (!helperBinary) {
-		return {
-			ok: false,
-			started: false,
-			reachable: false,
-			helperBinary: null,
-			message: 'Helper binary not found. Rebuild helper and repackage the app.',
-			status: helperStatus
-		};
-	}
-	const result = await restartHelper();
-	await syncHelperConfigWithRetry();
-	if (!result.started) {
-		return {
-			ok: false,
-			started: false,
-			reachable: false,
-			helperBinary,
-			message: 'Helper failed to start (spawn failed or blocked by macOS).',
-			status: helperStatus
-		};
-	}
-	if (!result.reachable) {
-		return {
-			ok: false,
-			started: true,
-			reachable: false,
-			helperBinary,
-			message: 'Helper launched but did not become reachable. It may be crashing on startup.',
-			status: helperStatus
-		};
-	}
-	return { ok: true, started: true, reachable: true, helperBinary, status: helperStatus };
-});
-ipcMain.handle('helper:open-a11y', async () => {
-	const { shell } = require('electron');
-	await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-	return { ok: true };
-});
-
-ipcMain.handle('helper:reveal-binary', async () => {
-	const { shell } = require('electron');
-	const helperBinary = findHelperBinaryPath();
-	if (!helperBinary) {
-		return { ok: false, message: 'Helper binary not found' };
-	}
-	shell.showItemInFolder(helperBinary);
-	return { ok: true, helperBinary };
-});
-
-ipcMain.handle('helper:request-accessibility', async () => {
-	try {
-		const response = await helperBridge.sendCommand({ type: 'request_accessibility', payload: {} });
-		helperStatus.running = true;
-		helperStatus.accessibilityEnabled = !!response.accessibilityEnabled;
-		helperStatus.secureInput = !!response.secureInput;
-		refreshTray();
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.webContents.send('helper:status', helperStatus);
-		}
-		return response;
-	} catch (_error) {
-		return { ok: false, message: 'Helper unavailable' };
-	}
-});
-
-ipcMain.handle('helper:request-input-monitoring', async () => {
-	try {
-		const response = await helperBridge.sendCommand({ type: 'request_input_monitoring', payload: {} });
-		helperStatus.running = true;
-		helperStatus.listenEventAccess = !!response.listenEventAccess;
-		helperStatus.accessibilityEnabled = !!response.accessibilityEnabled;
-		helperStatus.postEventAccess = !!response.postEventAccess;
-		helperStatus.eventTapActive = !!response.eventTapActive;
-		helperStatus.secureInput = !!response.secureInput;
-		refreshTray();
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.webContents.send('helper:status', helperStatus);
-		}
-		return response;
-	} catch (_error) {
-		return { ok: false, message: 'Helper unavailable' };
-	}
-});
-
-ipcMain.on('fill:respond', async (_event, payload) => {
-	const requestId = payload.requestId;
-	const values = payload.values || {};
-	const cancelled = !!payload.cancelled;
-	if (fillWindow && !fillWindow.isDestroyed()) {
-		try {
-			fillWindow.hide();
-		} catch (_error) {
-			// Ignore
-		}
-		setTimeout(() => {
-			try {
-				fillWindow.close();
-			} catch (_error) {
-				// Ignore
-			}
-		}, 250);
-	}
-	try {
-		app.hide();
-	} catch (_error) {
-		// Ignore
-	}
-	await new Promise((resolve) => setTimeout(resolve, 220));
-	helperBridge
-		.sendCommand({
-			type: 'fill_response',
-			payload: {
-				requestId,
-				values,
-				cancelled
-			}
-		})
-		.catch(() => {});
 });
