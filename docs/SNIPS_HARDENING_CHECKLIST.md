@@ -166,12 +166,19 @@ This is the largest and most important Phase 1 task. Use ES modules (the Electro
 
 ### SN-005: Add JSDoc type annotations to all JS files
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** M  
 **Risk:** Low  
 **Depends on:** SN-003, SN-004 (after module split)  
-**Why:** No type safety exists. JSDoc provides lightweight typing without migrating to TypeScript.  
+**Why:** No type safety exists. JSDoc provides lightweight typing without migrating to TypeScript.
+
+**Implementation notes:**
+- Added `@typedef` blocks to `db.js` for Group, Snippet, SnippetCounts, Settings, StatsResult.
+- Added `@param` and `@returns` JSDoc to all public methods in `db.js` (16 methods).
+- Added JSDoc to `helper-bridge.js` (6 methods).
+- Added `@typedef` for SnipsApi shape in `preload.js`.
+- `npm run lint` — 0 errors, 0 warnings. `npm run format:check` — clean.  
 **Files likely involved:**  
 - All `app/src/main/*.js` files
 - All `app/src/renderer/*.js` files

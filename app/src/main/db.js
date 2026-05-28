@@ -2,7 +2,63 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
+/**
+ * @typedef {object} Group
+ * @property {string} id
+ * @property {string} name
+ * @property {string|null} parentId
+ * @property {number} sortOrder
+ * @property {number} createdAt
+ * @property {number} updatedAt
+ */
+
+/**
+ * @typedef {object} Snippet
+ * @property {string} id
+ * @property {string} groupId
+ * @property {string} name
+ * @property {string} abbreviation
+ * @property {string} content
+ * @property {number} enabled
+ * @property {number} favorite
+ * @property {string} notes
+ * @property {string} triggerMode
+ * @property {string} caseMode
+ * @property {number} createdAt
+ * @property {number} updatedAt
+ * @property {string[]} [tags]
+ */
+
+/**
+ * @typedef {object} SnippetCounts
+ * @property {number} total
+ * @property {Object<string,number>} byGroup
+ */
+
+/**
+ * @typedef {object} Settings
+ * @property {string} enabled
+ * @property {string} expandOn
+ * @property {string} maxBufferLength
+ * @property {string} globalHotkey
+ * @property {string} pauseExpansions
+ * @property {string} helperHost
+ * @property {string} helperPort
+ * @property {string} appEventPort
+ * @property {string} [key: string]
+ */
+
+/**
+ * @typedef {object} StatsResult
+ * @property {Array} perSnippet
+ * @property {{expansions: number, timeSavedMs: number}} summary
+ * @property {{fromTs: number, toTs: number}} range
+ */
+
 class SnipsDb {
+	/**
+	 * @param {string} baseDir - Path to the data directory
+	 */
 	constructor(baseDir) {
 		this.baseDir = baseDir;
 		if (!fs.existsSync(baseDir)) {
@@ -107,10 +163,18 @@ class SnipsDb {
 		}
 	}
 
+	/**
+	 * Lists all groups ordered by sortOrder then name.
+	 * @returns {Group[]}
+	 */
 	listGroups() {
 		return this.db.prepare('SELECT * FROM groups ORDER BY sortOrder ASC, name ASC').all();
 	}
 
+	/**
+	 * Returns total snippet count and per-group counts.
+	 * @returns {SnippetCounts}
+	 */
 	getSnippetCounts() {
 		const rows = this.db
 			.prepare(
@@ -129,10 +193,24 @@ class SnipsDb {
 		return { total: Number(total || 0), byGroup };
 	}
 
+	/**
+	 * Finds a group by exact name.
+	 * @param {string} name
+	 * @returns {Group|undefined}
+	 */
 	getGroupByName(name) {
 		return this.db.prepare('SELECT * FROM groups WHERE name = ? LIMIT 1').get(name);
 	}
 
+	/**
+	 * Creates or updates a group.
+	 * @param {object} group
+	 * @param {string} [group.id]
+	 * @param {string} group.name
+	 * @param {string|null} [group.parentId]
+	 * @param {number} [group.sortOrder]
+	 * @returns {Group}
+	 */
 	saveGroup(group) {
 		const now = Date.now();
 		const id = group.id || `group_${now}`;
@@ -151,16 +229,34 @@ class SnipsDb {
 		return this.db.prepare('SELECT * FROM groups WHERE id = ?').get(id);
 	}
 
+	/**
+	 * Deletes a group, moving its snippets to the General group.
+	 * The default group cannot be deleted.
+	 * @param {string} id
+	 */
 	deleteGroup(id) {
 		const fallback = 'default';
 		this.db.prepare('UPDATE snippets SET groupId = ? WHERE groupId = ?').run(fallback, id);
 		this.db.prepare('DELETE FROM groups WHERE id = ? AND id != ?').run(id, fallback);
 	}
 
+	/**
+	 * Finds a snippet by its abbreviation (unique).
+	 * @param {string} abbreviation
+	 * @returns {Snippet|undefined}
+	 */
 	getSnippetByAbbreviation(abbreviation) {
 		return this.db.prepare('SELECT * FROM snippets WHERE abbreviation = ? LIMIT 1').get(abbreviation);
 	}
 
+	/**
+	 * Lists snippets with optional filtering and sorting.
+	 * @param {object} [options]
+	 * @param {string} [options.query] - Search term (LIKE match on name, abbreviation, content)
+	 * @param {string|null} [options.groupId] - Filter by group ID
+	 * @param {string} [options.sort] - Sort mode (updated_desc, created_desc, name_asc, etc.)
+	 * @returns {Snippet[]}
+	 */
 	listSnippets({ query = '', groupId = null, sort = 'updated_desc' } = {}) {
 		let sql = 'SELECT * FROM snippets WHERE 1 = 1';
 		const params = [];
@@ -200,6 +296,11 @@ class SnipsDb {
 		return rows.map((row) => ({ ...row, tags: this.listTags(row.id) }));
 	}
 
+	/**
+	 * Gets a single snippet by ID, including its tags.
+	 * @param {string} id
+	 * @returns {Snippet|null}
+	 */
 	getSnippet(id) {
 		const row = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(id);
 		if (!row) {
@@ -208,6 +309,11 @@ class SnipsDb {
 		return { ...row, tags: this.listTags(row.id) };
 	}
 
+	/**
+	 * Lists tags for a snippet.
+	 * @param {string} snippetId
+	 * @returns {string[]}
+	 */
 	listTags(snippetId) {
 		return this.db
 			.prepare('SELECT tag FROM snippet_tags WHERE snippetId = ? ORDER BY tag ASC')
@@ -215,6 +321,22 @@ class SnipsDb {
 			.map((r) => r.tag);
 	}
 
+	/**
+	 * Creates or updates a snippet and its tags.
+	 * @param {object} snippet
+	 * @param {string} [snippet.id]
+	 * @param {string} snippet.groupId
+	 * @param {string} snippet.name
+	 * @param {string} snippet.abbreviation
+	 * @param {string} snippet.content
+	 * @param {boolean} [snippet.enabled]
+	 * @param {boolean} [snippet.favorite]
+	 * @param {string} [snippet.notes]
+	 * @param {string} [snippet.triggerMode]
+	 * @param {string} [snippet.caseMode]
+	 * @param {string[]} [snippet.tags]
+	 * @returns {Snippet}
+	 */
 	saveSnippet(snippet) {
 		const now = Date.now();
 		const id = snippet.id || `snippet_${now}`;
@@ -290,11 +412,19 @@ class SnipsDb {
 		return this.getSnippet(id);
 	}
 
+	/**
+	 * Permanently deletes a snippet and its tags.
+	 * @param {string} id
+	 */
 	deleteSnippet(id) {
 		this.db.prepare('DELETE FROM snippet_tags WHERE snippetId = ?').run(id);
 		this.db.prepare('DELETE FROM snippets WHERE id = ?').run(id);
 	}
 
+	/**
+	 * Returns all settings as a key-value object.
+	 * @returns {Settings}
+	 */
 	getSettings() {
 		const rows = this.db.prepare('SELECT key, value FROM settings').all();
 		const out = {};
@@ -304,6 +434,11 @@ class SnipsDb {
 		return out;
 	}
 
+	/**
+	 * Saves settings. Only the provided keys are updated.
+	 * @param {object} input - Key-value pairs to save
+	 * @returns {Settings}
+	 */
 	saveSettings(input) {
 		const stmt = this.db.prepare(
 			'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
@@ -314,6 +449,17 @@ class SnipsDb {
 		return this.getSettings();
 	}
 
+	/**
+	 * Records an expansion event for stats tracking.
+	 * @param {object} event
+	 * @param {string} event.id
+	 * @param {string} event.snippetId
+	 * @param {number} event.timestamp
+	 * @param {number} event.charsInserted
+	 * @param {number} event.charsSaved
+	 * @param {number} event.timeSavedMs
+	 * @param {string} [event.appBundleId]
+	 */
 	recordEvent(event) {
 		this.db
 			.prepare(
@@ -333,6 +479,13 @@ class SnipsDb {
 			);
 	}
 
+	/**
+	 * Returns usage stats for a date range.
+	 * @param {object} [range]
+	 * @param {number} [range.fromTs] - Start timestamp (default: 7 days ago)
+	 * @param {number} [range.toTs] - End timestamp (default: now)
+	 * @returns {StatsResult}
+	 */
 	getStats(range) {
 		const now = Date.now();
 		const defaultFrom = now - 7 * 24 * 60 * 60 * 1000;
@@ -381,6 +534,11 @@ class SnipsDb {
 		};
 	}
 
+	/**
+	 * Returns snippets that should be sent to the helper for expansion.
+	 * Only enabled snippets with non-empty abbreviations.
+	 * @returns {Array<{id: string, abbreviation: string, content: string, triggerMode: string, caseMode: string}>}
+	 */
 	getEnabledSnippetsForHelper() {
 		return this.db
 			.prepare(

@@ -1,5 +1,39 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/**
+ * Snips renderer API — exposed to the renderer process via contextBridge.
+ *
+ * All methods use ipcRenderer.invoke for request/response IPC.
+ * Event listeners use ipcRenderer.on for push notifications from main process.
+ *
+ * @typedef {object} SnipsApi
+ * @property {() => Promise<Group[]>} listGroups
+ * @property {(group: object) => Promise<Group>} saveGroup
+ * @property {(groupId: string) => Promise<{ok: boolean}>} deleteGroup
+ * @property {(args?: object) => Promise<Snippet[]>} listSnippets
+ * @property {() => Promise<SnippetCounts>} getSnippetCounts
+ * @property {(id: string) => Promise<Snippet|null>} getSnippet
+ * @property {(snippet: object) => Promise<Snippet>} saveSnippet
+ * @property {(id: string) => Promise<{ok: boolean}>} deleteSnippet
+ * @property {(snippet: object) => Promise<{rendered: string}>} testRenderSnippet
+ * @property {() => Promise<Settings>} getSettings
+ * @property {(settings: object) => Promise<Settings>} saveSettings
+ * @property {(range?: object) => Promise<StatsResult>} getStats
+ * @property {(payload: object) => Promise<object>} importCsv
+ * @property {() => Promise<{ok: boolean}>} openPalette
+ * @property {(snippetId: string) => Promise<object>} insertByPalette
+ * @property {() => Promise<object>} getHelperStatus
+ * @property {() => Promise<{ok: boolean}>} openAccessibilitySettings
+ * @property {() => Promise<object>} restartHelper
+ * @property {() => Promise<object>} revealHelperBinary
+ * @property {() => Promise<object>} requestAccessibility
+ * @property {() => Promise<object>} requestInputMonitoring
+ * @property {(handler: Function) => void} onStatsUpdated
+ * @property {(handler: Function) => void} onHelperStatus
+ * @property {(handler: Function) => void} onPaletteShow
+ * @property {(handler: Function) => void} onNavShow
+ */
+
 contextBridge.exposeInMainWorld('snipsApi', {
 	listGroups: () => ipcRenderer.invoke('groups:list'),
 	saveGroup: (group) => ipcRenderer.invoke('groups:save', group),

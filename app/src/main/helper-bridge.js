@@ -2,6 +2,10 @@ const net = require('net');
 const http = require('http');
 
 class HelperBridge {
+	/**
+	 * @param {object} options
+	 * @param {Function} options.onEvent - Callback for helper events
+	 */
 	constructor({ onEvent }) {
 		this.onEvent = onEvent;
 		this.host = '127.0.0.1';
@@ -10,12 +14,22 @@ class HelperBridge {
 		this.server = null;
 	}
 
+	/**
+	 * Updates the host/port configuration for the helper connection.
+	 * @param {object} opts
+	 * @param {string} [opts.host]
+	 * @param {number|string} [opts.port]
+	 * @param {number|string} [opts.appEventPort]
+	 */
 	updatePorts({ host, port, appEventPort }) {
 		this.host = host || '127.0.0.1';
 		this.port = Number(port || 50555);
 		this.appEventPort = Number(appEventPort || 50556);
 	}
 
+	/**
+	 * Starts the HTTP server that receives events from the helper.
+	 */
 	startEventServer() {
 		if (this.server) {
 			return;
@@ -45,6 +59,11 @@ class HelperBridge {
 		this.server.listen(this.appEventPort, '127.0.0.1');
 	}
 
+	/**
+	 * Sends a JSON command to the helper over TCP.
+	 * @param {object} command
+	 * @returns {Promise<object>}
+	 */
 	sendCommand(command) {
 		return new Promise((resolve, reject) => {
 			const socket = new net.Socket();
@@ -84,6 +103,13 @@ class HelperBridge {
 		});
 	}
 
+	/**
+	 * Sends the full snippet/configuration payload to the helper.
+	 * @param {object} opts
+	 * @param {Array} opts.snippets
+	 * @param {Settings} opts.settings
+	 * @returns {Promise<object>}
+	 */
 	sendConfig({ snippets, settings }) {
 		let excludedApps = [];
 		try {
@@ -110,6 +136,11 @@ class HelperBridge {
 		});
 	}
 
+	/**
+	 * Requests the helper to insert a snippet by its ID.
+	 * @param {string} snippetId
+	 * @returns {Promise<object>}
+	 */
 	insertById(snippetId) {
 		return this.sendCommand({
 			type: 'insert_by_id',
