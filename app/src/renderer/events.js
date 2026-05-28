@@ -438,6 +438,34 @@ function wireEvents() {
 			} else showToast('Helper path not available.', 'warning', 2500);
 		};
 	}
+	const resetStatsBtn = document.getElementById('resetStatsBtn');
+	if (resetStatsBtn) {
+		resetStatsBtn.onclick = async () => {
+			const ok = window.confirm('Reset all usage stats? This cannot be undone.');
+			if (!ok) return;
+			await window.snipsApi.resetStats();
+			await loadStats();
+			showToast('Stats reset.', 'success', 1800);
+		};
+	}
+
+	const exportStatsBtn = document.getElementById('exportStatsBtn');
+	if (exportStatsBtn) {
+		exportStatsBtn.onclick = async () => {
+			const result = await window.snipsApi.exportStats();
+			if (result && result.ok) {
+				const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = 'snips-stats-' + new Date().toISOString().slice(0, 10) + '.json';
+				a.click();
+				URL.revokeObjectURL(url);
+				showToast('Stats exported.', 'success', 1800);
+			}
+		};
+	}
+
 	if (btns.restartHelper) {
 		btns.restartHelper.onclick = async () => {
 			showToast('Restarting helper...', 'success', 1400);
@@ -534,6 +562,9 @@ function wireEvents() {
 	document.querySelectorAll('.macro-tools button').forEach((btn) => {
 		btn.onclick = () => {
 			const macro = btn.getAttribute('data-macro');
+			if (macro && macro.includes('clipboard')) {
+				showToast('This macro reads your system clipboard at expansion time.', 'warning', 3500);
+			}
 			const start = els.contentInput.selectionStart;
 			const end = els.contentInput.selectionEnd;
 			els.contentInput.value = els.contentInput.value.slice(0, start) + macro + els.contentInput.value.slice(end);

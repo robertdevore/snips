@@ -151,6 +151,16 @@ function registerHandlers(deps) {
 
 	ipcMain.handle('stats:get', (_event, range) => db.getStats(range));
 
+	ipcMain.handle('stats:reset', (_event, snippetId) => {
+		db.resetStats(snippetId || null);
+		return { ok: true };
+	});
+
+	ipcMain.handle('stats:export', (_event, range) => {
+		const stats = db.getStats(range || {});
+		return { ok: true, data: stats };
+	});
+
 	// --- Palette ---
 
 	ipcMain.handle('palette:open', () => {

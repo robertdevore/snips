@@ -501,6 +501,18 @@ class SnipsDb {
 	}
 
 	/**
+	 * Resets all stats events, optionally for a specific snippet.
+	 * @param {string} [snippetId] - If provided, only reset stats for this snippet
+	 */
+	resetStats(snippetId) {
+		if (snippetId) {
+			this.db.prepare('DELETE FROM events WHERE snippetId = ?').run(snippetId);
+		} else {
+			this.db.prepare('DELETE FROM events').run();
+		}
+	}
+
+	/**
 	 * Returns usage stats for a date range.
 	 * @param {object} [range]
 	 * @param {number} [range.fromTs] - Start timestamp (default: 7 days ago)

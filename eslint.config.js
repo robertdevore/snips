@@ -45,6 +45,8 @@ module.exports = [
 				DOMException: 'readonly',
 				ResizeObserver: 'readonly',
 				MutationObserver: 'readonly',
+				Blob: 'readonly',
+				URL: 'readonly',
 				// Browser DOM APIs
 				getComputedStyle: 'readonly',
 				// Electron preload

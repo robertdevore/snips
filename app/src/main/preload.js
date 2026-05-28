@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('snipsApi', {
 	getSettings: () => ipcRenderer.invoke('settings:get'),
 	saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 	getStats: (range) => ipcRenderer.invoke('stats:get', range),
+	resetStats: (snippetId) => ipcRenderer.invoke('stats:reset', snippetId),
+	exportStats: (range) => ipcRenderer.invoke('stats:export', range),
 	importCsv: (payload) => ipcRenderer.invoke('import:csv', payload),
 	exportJson: () => ipcRenderer.invoke('export:json'),
 	openPalette: () => ipcRenderer.invoke('palette:open'),
