@@ -254,7 +254,7 @@ Create an `errors.js` module with error classification (network, db, validation,
 
 ### SN-008: Fix empty states across all views
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** S  
 **Risk:** Low  
@@ -284,7 +284,7 @@ Make empty states visually distinct from loaded states. Use muted colors, center
 
 ### SN-009: Add `npm run test` infrastructure
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** M  
 **Risk:** Low  
@@ -316,7 +316,7 @@ Use Vitest with `pool: 'forks'` to avoid Electron native module issues. `better-
 
 ### SN-010: Add snippet validation on save
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** M  
 **Risk:** Low  
@@ -348,7 +348,7 @@ Create a `validation.js` module in `app/src/main/`. Return structured errors: `{
 
 ### SN-011: Add friendly duplicate abbreviation handling
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** S  
 **Risk:** Low  
@@ -377,7 +377,7 @@ Use `db.getSnippetByAbbreviation()` before `db.saveSnippet()`. If found and IDs 
 
 ### SN-012: Add soft-delete for snippets
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** M  
 **Risk:** Medium  
@@ -412,7 +412,7 @@ This requires a schema migration. Since there's no migration framework, add a si
 
 ### SN-013: Add soft-delete for groups
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** S  
 **Risk:** Low  
@@ -440,7 +440,7 @@ Keep this minimal. The main goal is preventing permanent data loss. Restore UI c
 
 ### SN-014: Add schema versioning and migration framework
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** M  
 **Risk:** Medium  
@@ -470,7 +470,7 @@ Keep migrations as an array of `{version: number, up: () => void}`. Run in order
 
 ### SN-015: Add export functionality
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Snippet Integrity  
 **Size:** M  
 **Risk:** Low  
@@ -506,7 +506,7 @@ JSON format should be self-describing: `{version: 1, exportedAt: ..., appVersion
 
 ### SN-016: Add dirty state tracking to snippet editor
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** M  
 **Risk:** Low  
@@ -537,7 +537,7 @@ Store a "last saved snapshot" of snippet fields. Compare current values to snaps
 
 ### SN-017: Add keyboard shortcuts within the app
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** S  
 **Risk:** Low  
@@ -568,7 +568,7 @@ Use a global `keydown` listener on `document`. Check for modifier keys. Do NOT u
 
 ### SN-018: Add debounced search
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** XS  
 **Risk:** Low  
@@ -593,7 +593,7 @@ Simple `setTimeout`/`clearTimeout` pattern. Store the timeout ID. Clear on each 
 
 ### SN-019: Improve snippet list items
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** M  
 **Risk:** Low  
@@ -751,7 +751,7 @@ Use CSS custom properties on `:root` and a `[data-theme="dark"]` selector. Avoid
 
 ### SN-024: Add recently used snippets section
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** S  
 **Risk:** Low  
