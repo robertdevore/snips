@@ -211,12 +211,16 @@ export function clearEditor() {
 // --- Data loading ---
 
 export async function loadGroups() {
-	state.groups = await window.snipsApi.listGroups();
-	await loadSnippetCounts();
-	if (!state.selectedGroupId && state.groups.length) {
-		state.selectedGroupId = state.groups[0].id;
+	try {
+		state.groups = await window.snipsApi.listGroups();
+		await loadSnippetCounts();
+		if (!state.selectedGroupId && state.groups.length) {
+			state.selectedGroupId = state.groups[0].id;
+		}
+		renderGroups();
+	} catch (_err) {
+		showToast('Could not load groups.', 'error', 4200);
 	}
-	renderGroups();
 }
 
 export async function loadSnippets() {

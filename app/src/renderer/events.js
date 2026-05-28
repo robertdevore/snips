@@ -587,6 +587,11 @@ function wireEvents() {
 }
 
 export async function boot() {
+	window.addEventListener('unhandledrejection', (event) => {
+		console.error('Unhandled rejection:', event.reason);
+		showToast('An unexpected error occurred.', 'error', 5000);
+	});
+
 	initEls();
 	initExtraEls();
 	wireEvents();

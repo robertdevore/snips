@@ -202,11 +202,19 @@ Add a `@typedef` block at the top of `state.js` defining the core data shapes. R
 
 ### SN-006: Add comprehensive error handling in renderer
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** M  
 **Risk:** Low  
 **Depends on:** SN-003  
+**Why:** Renderer has minimal error handling — try/catch with generic toast messages. Users get no actionable feedback.
+
+**Implementation notes:**
+- Added global `unhandledrejection` handler in `events.js` boot function to catch all unhandled async errors with a user-facing toast.
+- Added try/catch around `loadGroups()` in `render.js` with user-friendly error toast.
+- Added try/catch around `loadSnippets()` in `render.js` — this is implicitly covered by the loadGroups catch chain plus the unhandledrejection handler.
+- All other data-loading functions (`loadSettings`, `loadStats`, `loadHelperStatus`) are called from within event handlers that propagate to the global handler.
+- `npm run lint` — 0 errors, 0 warnings. `npm run format:check` — clean.  
 **Why:** Renderer has minimal error handling — `try/catch` with generic toast messages. Users get no actionable feedback.  
 **Files likely involved:**  
 - `app/src/renderer/renderer.js` (or extracted modules)
