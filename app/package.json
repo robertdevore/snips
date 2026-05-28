@@ -12,7 +12,9 @@
 		"build": "echo 'No compile step required for plain JS renderer/main'",
 		"make:icns": "zsh scripts/make-icns.sh",
 		"package:dmg": "zsh scripts/package-dmg.sh",
-		"package:dir": "electron-builder --mac dir"
+		"package:dir": "electron-builder --mac dir",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"build": {
 		"appId": "com.snips.app",
@@ -51,7 +53,8 @@
 	"devDependencies": {
 		"@electron/rebuild": "^4.0.3",
 		"electron": "37.2.0",
-		"electron-builder": "^26.0.12"
+		"electron-builder": "^26.0.12",
+		"vitest": "^3.2.4"
 	},
 	"dependencies": {
 		"better-sqlite3": "^12.4.1"
