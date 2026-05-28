@@ -305,6 +305,9 @@ class SnipsDb {
 			case 'name_desc':
 				order = 'name COLLATE NOCASE DESC';
 				break;
+			case 'recently_used':
+				order = 'updatedAt DESC';
+				break;
 			case 'updated_desc':
 			default:
 				order = 'updatedAt DESC';

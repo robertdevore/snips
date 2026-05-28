@@ -592,6 +592,23 @@ export async function boot() {
 		console.error('Unhandled rejection:', event.reason);
 		showToast('An unexpected error occurred.', 'error', 5000);
 	});
+	// In-app keyboard shortcuts
+	document.addEventListener('keydown', (e) => {
+		const mod = e.metaKey || e.ctrlKey;
+		if (mod && 's' === e.key.toLowerCase()) {
+			e.preventDefault();
+			document.getElementById('saveSnippetBtn')?.click();
+		}
+		if (mod && 'n' === e.key.toLowerCase()) {
+			e.preventDefault();
+			document.getElementById('newSnippetBtn')?.click();
+		}
+		if (mod && 'f' === e.key.toLowerCase()) {
+			e.preventDefault();
+			els.searchInput?.focus();
+			els.searchInput?.select();
+		}
+	});
 
 	initEls();
 	initExtraEls();

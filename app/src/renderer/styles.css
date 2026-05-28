@@ -1261,3 +1261,12 @@ a,
 	overflow: auto;
 	font-size: 13px;
 }
+
+.snippet-preview {
+	font-size: 12px;
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-top: 2px;
+}
