@@ -34,7 +34,10 @@ function createMainWindow() {
 		webPreferences: {
 			preload: path.join(__dirname, 'preload.js'),
 			contextIsolation: true,
-			nodeIntegration: false
+			nodeIntegration: false,
+			sandbox: true,
+			webSecurity: true,
+			allowRunningInsecureContent: false
 		}
 	});
 	mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -66,7 +69,10 @@ function createPaletteWindow() {
 		webPreferences: {
 			preload: path.join(__dirname, 'preload.js'),
 			contextIsolation: true,
-			nodeIntegration: false
+			nodeIntegration: false,
+			sandbox: true,
+			webSecurity: true,
+			allowRunningInsecureContent: false
 		}
 	});
 	paletteWindow.loadFile(path.join(__dirname, '../renderer/palette.html'));
@@ -89,7 +95,10 @@ function createFillWindow() {
 		webPreferences: {
 			preload: path.join(__dirname, 'preload-fill.js'),
 			contextIsolation: true,
-			nodeIntegration: false
+			nodeIntegration: false,
+			sandbox: true,
+			webSecurity: true,
+			allowRunningInsecureContent: false
 		}
 	});
 	fillWindow.loadFile(path.join(__dirname, '../renderer/fill.html'));
@@ -99,7 +108,11 @@ function refreshTray() {
 	if (!tray) {
 		return;
 	}
-	const stateLabel = helperStatus.secureInput ? 'Secure Input active' : (helperStatus.running ? 'Running' : 'Helper offline');
+	const stateLabel = helperStatus.secureInput
+		? 'Secure Input active'
+		: helperStatus.running
+			? 'Running'
+			: 'Helper offline';
 	tray.setToolTip(`Snips - ${stateLabel}`);
 	const contextMenu = Menu.buildFromTemplate([
 		{ label: 'Open Snips', click: () => showMainWindow() },
@@ -123,7 +136,8 @@ function refreshTray() {
 }
 
 function setupTray() {
-	const tinyTemplate = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAHElEQVR4nGNgGAWjYBSMglEwCkbBKBgFo2AUjAIA6RQAAR2j8E4AAAAASUVORK5CYII=';
+	const tinyTemplate =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAHElEQVR4nGNgGAWjYBSMglEwCkbBKBgFo2AUjAIA6RQAAR2j8E4AAAAASUVORK5CYII=';
 	const icon = nativeImage.createFromDataURL(tinyTemplate);
 	icon.setTemplateImage(true);
 	tray = new Tray(icon);
@@ -207,8 +221,20 @@ async function syncHelperConfig() {
 }
 
 function findHelperBinaryPath() {
-	const packagedArm = path.join(process.resourcesPath || '', 'helper-build', 'arm64-apple-macosx', 'release', 'SnipsHelper');
-	const packagedX64 = path.join(process.resourcesPath || '', 'helper-build', 'x86_64-apple-macosx', 'release', 'SnipsHelper');
+	const packagedArm = path.join(
+		process.resourcesPath || '',
+		'helper-build',
+		'arm64-apple-macosx',
+		'release',
+		'SnipsHelper'
+	);
+	const packagedX64 = path.join(
+		process.resourcesPath || '',
+		'helper-build',
+		'x86_64-apple-macosx',
+		'release',
+		'SnipsHelper'
+	);
 	const devArm = path.resolve(__dirname, '../../../helper/.build/arm64-apple-macosx/release/SnipsHelper');
 	const devX64 = path.resolve(__dirname, '../../../helper/.build/x86_64-apple-macosx/release/SnipsHelper');
 	const devFallback = path.resolve(__dirname, '../../../helper/.build/release/SnipsHelper');
@@ -222,9 +248,10 @@ function findHelperBinaryPath() {
 		const userHelperPath = path.join(userMacOsDir, 'SnipsHelper');
 		const userInfoPlistPath = path.join(userAppPath, 'Contents', 'Info.plist');
 		let modifiedUserHelperApp = false;
-		const sourcePreferred = ('arm64' === process.arch)
-			? [packagedArm, devArm, packagedX64, devX64, devFallback]
-			: [packagedX64, devX64, packagedArm, devArm, devFallback];
+		const sourcePreferred =
+			'arm64' === process.arch
+				? [packagedArm, devArm, packagedX64, devX64, devFallback]
+				: [packagedX64, devX64, packagedArm, devArm, devFallback];
 		let source = null;
 		for (const candidate of sourcePreferred) {
 			if (candidate && fs.existsSync(candidate)) {
@@ -256,7 +283,9 @@ function findHelperBinaryPath() {
 			}
 			if (modifiedUserHelperApp) {
 				try {
-					execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', userAppPath], { stdio: 'ignore' });
+					execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', userAppPath], {
+						stdio: 'ignore'
+					});
 				} catch (_error) {
 					// Ignore
 				}
@@ -269,9 +298,10 @@ function findHelperBinaryPath() {
 		userAppHelperBinary = null;
 	}
 
-	const preferred = ('arm64' === process.arch)
-		? [userAppHelperBinary, packagedArm, devArm, packagedX64, devX64, devFallback]
-		: [userAppHelperBinary, packagedX64, devX64, packagedArm, devArm, devFallback];
+	const preferred =
+		'arm64' === process.arch
+			? [userAppHelperBinary, packagedArm, devArm, packagedX64, devX64, devFallback]
+			: [userAppHelperBinary, packagedX64, devX64, packagedArm, devArm, devFallback];
 	const candidates = preferred.filter(Boolean);
 	for (const candidate of candidates) {
 		if (candidate && fs.existsSync(candidate)) {
@@ -285,8 +315,8 @@ function get_helper_connection_settings() {
 	try {
 		const settings = db ? db.getSettings() : null;
 		return {
-			host: (settings && settings.helperHost) ? settings.helperHost : '127.0.0.1',
-			port: Number((settings && settings.helperPort) ? settings.helperPort : 50555)
+			host: settings && settings.helperHost ? settings.helperHost : '127.0.0.1',
+			port: Number(settings && settings.helperPort ? settings.helperPort : 50555)
 		};
 	} catch (_error) {
 		return { host: '127.0.0.1', port: 50555 };
@@ -300,7 +330,9 @@ function isHelperReachable(timeoutMs, host, port) {
 		const done = (ok) => {
 			if (finished) return;
 			finished = true;
-			try { socket.destroy(); } catch (_e) { }
+			try {
+				socket.destroy();
+			} catch (_e) {}
 			resolve(!!ok);
 		};
 		try {
@@ -318,10 +350,8 @@ function isHelperReachable(timeoutMs, host, port) {
 async function waitForHelperReachable(maxWaitMs, host, port) {
 	const deadline = Date.now() + Number(maxWaitMs || 2000);
 	while (Date.now() < deadline) {
-		// eslint-disable-next-line no-await-in-loop
 		const ok = await isHelperReachable(250, host, port);
 		if (ok) return true;
-		// eslint-disable-next-line no-await-in-loop
 		await new Promise((resolve) => setTimeout(resolve, 150));
 	}
 	return false;
@@ -590,7 +620,11 @@ ipcMain.handle('import:csv', async (_event, payload) => {
 		if (!rows.length) {
 			return { ok: false, message: 'No rows found in CSV.' };
 		}
-		const first = rows[0].map((v) => String(v || '').trim().toLowerCase());
+		const first = rows[0].map((v) =>
+			String(v || '')
+				.trim()
+				.toLowerCase()
+		);
 		if (first[0] === 'abbreviation' && (first[1] === 'snippet' || first[1] === 'content')) {
 			rows = rows.slice(1);
 		}
@@ -648,15 +682,36 @@ ipcMain.handle('helper:status', () => helperStatus);
 ipcMain.handle('helper:restart', async () => {
 	const helperBinary = findHelperBinaryPath();
 	if (!helperBinary) {
-		return { ok: false, started: false, reachable: false, helperBinary: null, message: 'Helper binary not found. Rebuild helper and repackage the app.', status: helperStatus };
+		return {
+			ok: false,
+			started: false,
+			reachable: false,
+			helperBinary: null,
+			message: 'Helper binary not found. Rebuild helper and repackage the app.',
+			status: helperStatus
+		};
 	}
 	const result = await restartHelper();
 	await syncHelperConfigWithRetry();
 	if (!result.started) {
-		return { ok: false, started: false, reachable: false, helperBinary, message: 'Helper failed to start (spawn failed or blocked by macOS).', status: helperStatus };
+		return {
+			ok: false,
+			started: false,
+			reachable: false,
+			helperBinary,
+			message: 'Helper failed to start (spawn failed or blocked by macOS).',
+			status: helperStatus
+		};
 	}
 	if (!result.reachable) {
-		return { ok: false, started: true, reachable: false, helperBinary, message: 'Helper launched but did not become reachable. It may be crashing on startup.', status: helperStatus };
+		return {
+			ok: false,
+			started: true,
+			reachable: false,
+			helperBinary,
+			message: 'Helper launched but did not become reachable. It may be crashing on startup.',
+			status: helperStatus
+		};
 	}
 	return { ok: true, started: true, reachable: true, helperBinary, status: helperStatus };
 });
@@ -735,12 +790,14 @@ ipcMain.on('fill:respond', async (_event, payload) => {
 		// Ignore
 	}
 	await new Promise((resolve) => setTimeout(resolve, 220));
-	helperBridge.sendCommand({
-		type: 'fill_response',
-		payload: {
-			requestId,
-			values,
-			cancelled
-		}
-	}).catch(() => {});
+	helperBridge
+		.sendCommand({
+			type: 'fill_response',
+			payload: {
+				requestId,
+				values,
+				cancelled
+			}
+		})
+		.catch(() => {});
 });
