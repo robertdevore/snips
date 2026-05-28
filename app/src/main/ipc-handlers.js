@@ -8,6 +8,7 @@
 const { app, ipcMain, clipboard } = require('electron');
 const { extractFillFields, renderTemplate } = require('./template-renderer');
 const { importCsv } = require('./import-csv');
+const { validateSnippet } = require('./validation');
 
 /**
  * Registers all IPC handlers on the ipcMain object.
@@ -66,6 +67,28 @@ function registerHandlers(deps) {
 	ipcMain.handle('snippets:get', (_event, id) => db.getSnippet(id));
 
 	ipcMain.handle('snippets:save', async (_event, snippet) => {
+		const validation = validateSnippet(snippet);
+		if (!validation.valid) {
+			return { ok: false, errors: validation.errors };
+		}
+
+		// Check for duplicate abbreviation
+		const abbr = String(snippet.abbreviation || '').trim();
+		if (abbr) {
+			const existing = db.getSnippetByAbbreviation(abbr);
+			if (existing && existing.id !== snippet.id) {
+				return {
+					ok: false,
+					errors: [
+						{
+							field: 'abbreviation',
+							message: `Abbreviation "${abbr}" is already used by snippet "${existing.name}".`
+						}
+					]
+				};
+			}
+		}
+
 		const saved = db.saveSnippet(snippet);
 		await syncHelperConfigWithRetry();
 		return saved;
@@ -111,7 +134,19 @@ function registerHandlers(deps) {
 			return { ok: false, message: error && error.message ? error.message : 'Import failed.' };
 		}
 	});
+	// --- Export ---
 
+	ipcMain.handle('export:json', async () => {
+		const groups = db.listGroups();
+		const snippets = db.listSnippets();
+		return {
+			version: 1,
+			exportedAt: Date.now(),
+			appVersion: '0.2.0',
+			groups,
+			snippets
+		};
+	});
 	// --- Stats ---
 
 	ipcMain.handle('stats:get', (_event, range) => db.getStats(range));

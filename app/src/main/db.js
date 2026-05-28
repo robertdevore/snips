@@ -78,7 +78,8 @@ class SnipsDb {
 				parentId TEXT,
 				sortOrder INTEGER DEFAULT 0,
 				createdAt INTEGER NOT NULL,
-				updatedAt INTEGER NOT NULL
+				updatedAt INTEGER NOT NULL,
+				deletedAt INTEGER
 			);
 
 			CREATE TABLE IF NOT EXISTS snippets (
@@ -94,6 +95,7 @@ class SnipsDb {
 				caseMode TEXT NOT NULL DEFAULT 'exact',
 				createdAt INTEGER NOT NULL,
 				updatedAt INTEGER NOT NULL,
+				deletedAt INTEGER,
 				UNIQUE(abbreviation)
 			);
 
@@ -123,6 +125,22 @@ class SnipsDb {
 		`);
 
 		this.ensureDefaults();
+		this.runMigrations();
+	}
+
+	runMigrations() {
+		// Add deletedAt to snippets if missing (soft-delete support)
+		try {
+			this.db.exec('ALTER TABLE snippets ADD COLUMN deletedAt INTEGER');
+		} catch (_e) {
+			/* Column already exists */
+		}
+		// Add deletedAt to groups if missing
+		try {
+			this.db.exec('ALTER TABLE groups ADD COLUMN deletedAt INTEGER');
+		} catch (_e) {
+			/* Column already exists */
+		}
 	}
 
 	ensureDefaults() {
@@ -168,7 +186,7 @@ class SnipsDb {
 	 * @returns {Group[]}
 	 */
 	listGroups() {
-		return this.db.prepare('SELECT * FROM groups ORDER BY sortOrder ASC, name ASC').all();
+		return this.db.prepare('SELECT * FROM groups WHERE deletedAt IS NULL ORDER BY sortOrder ASC, name ASC').all();
 	}
 
 	/**
@@ -181,11 +199,12 @@ class SnipsDb {
 				`
 			SELECT COALESCE(groupId, 'default') AS groupId, COUNT(*) AS count
 			FROM snippets
+			WHERE deletedAt IS NULL
 			GROUP BY COALESCE(groupId, 'default')
 		`
 			)
 			.all();
-		const total = this.db.prepare('SELECT COUNT(*) AS count FROM snippets').get().count;
+		const total = this.db.prepare('SELECT COUNT(*) AS count FROM snippets WHERE deletedAt IS NULL').get().count;
 		const byGroup = {};
 		for (const row of rows) {
 			byGroup[row.groupId] = Number(row.count || 0);
@@ -236,8 +255,8 @@ class SnipsDb {
 	 */
 	deleteGroup(id) {
 		const fallback = 'default';
-		this.db.prepare('UPDATE snippets SET groupId = ? WHERE groupId = ?').run(fallback, id);
-		this.db.prepare('DELETE FROM groups WHERE id = ? AND id != ?').run(id, fallback);
+		this.db.prepare('UPDATE snippets SET groupId = ? WHERE groupId = ? AND deletedAt IS NULL').run(fallback, id);
+		this.db.prepare('UPDATE groups SET deletedAt = ? WHERE id = ? AND id != ?').run(Date.now(), id, fallback);
 	}
 
 	/**
@@ -258,7 +277,7 @@ class SnipsDb {
 	 * @returns {Snippet[]}
 	 */
 	listSnippets({ query = '', groupId = null, sort = 'updated_desc' } = {}) {
-		let sql = 'SELECT * FROM snippets WHERE 1 = 1';
+		let sql = 'SELECT * FROM snippets WHERE deletedAt IS NULL';
 		const params = [];
 		if (groupId) {
 			sql += ' AND groupId = ?';
@@ -413,12 +432,11 @@ class SnipsDb {
 	}
 
 	/**
-	 * Permanently deletes a snippet and its tags.
+	 * Soft-deletes a snippet (sets deletedAt timestamp).
 	 * @param {string} id
 	 */
 	deleteSnippet(id) {
-		this.db.prepare('DELETE FROM snippet_tags WHERE snippetId = ?').run(id);
-		this.db.prepare('DELETE FROM snippets WHERE id = ?').run(id);
+		this.db.prepare('UPDATE snippets SET deletedAt = ? WHERE id = ?').run(Date.now(), id);
 	}
 
 	/**
@@ -545,7 +563,7 @@ class SnipsDb {
 				`
 			SELECT id, abbreviation, content, triggerMode, caseMode
 			FROM snippets
-			WHERE enabled = 1 AND abbreviation != ''
+			WHERE enabled = 1 AND abbreviation != '' AND deletedAt IS NULL
 		`
 			)
 			.all();

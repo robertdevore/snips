@@ -199,6 +199,7 @@ export async function selectSnippet(id) {
 	els.contentInput.value = snippet.content || '';
 	els.tagsInput.value = (snippet.tags || []).join(', ');
 	els.notesInput.value = snippet.notes || '';
+	state.lastSavedSnapshot = snippetFormToPayload();
 	renderSnippets();
 }
 

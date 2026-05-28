@@ -480,6 +480,7 @@ function wireEvents() {
 	if (btns.saveSnippet) {
 		btns.saveSnippet.onclick = async () => {
 			await window.snipsApi.saveSnippet(snippetFormToPayload());
+			state.lastSavedSnapshot = snippetFormToPayload();
 			await loadSnippets();
 			await notifyHelperHealth('Snippet saved.');
 		};

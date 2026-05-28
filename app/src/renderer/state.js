@@ -5,7 +5,8 @@ export const state = {
 	selectedSnippetId: null,
 	settings: {},
 	snippetCounts: { total: 0, byGroup: {} },
-	snippetSort: 'updated_desc'
+	snippetSort: 'updated_desc',
+	lastSavedSnapshot: null
 };
 
 export const els = {};
