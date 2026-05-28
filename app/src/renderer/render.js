@@ -376,7 +376,7 @@ export async function loadStats(rangeOverride) {
 	const stats = await window.snipsApi.getStats({ fromTs: range.fromTs, toTs: range.toTs });
 	extra.lastStatsForCharts = stats;
 	const summary = stats.summary || { expansions: 0, timeSavedMs: 0 };
-	els.weeklyStats.textContent = `${range.label}: ${summary.expansions || 0} expansions \u2022 ${formatDurationMs(summary.timeSavedMs || 0)} saved`;
+	els.weeklyStats.innerHTML = `${range.label}: ${summary.expansions || 0} expansions \u2022 ${formatDurationMs(summary.timeSavedMs || 0)} saved <span style="font-size:11px;color:var(--muted)">(est.)</span>`;
 	renderStatsCharts(
 		{ bar: extra.statsBarChartEl, pie: extra.statsPieChartEl, legend: extra.statsPieLegendEl },
 		stats
