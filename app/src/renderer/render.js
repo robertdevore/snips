@@ -208,6 +208,23 @@ export function clearEditor() {
 	renderSnippets();
 }
 
+// --- Loading states ---
+
+/**
+ * Shows skeleton loading placeholders in the snippet list.
+ */
+function showSkeletonLoader() {
+	els.snippetList.classList.add('is-loading');
+	els.snippetList.innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton-card"></div>').join('');
+}
+
+/**
+ * Removes skeleton loading placeholders.
+ */
+function hideSkeletonLoader() {
+	els.snippetList.classList.remove('is-loading');
+}
+
 // --- Data loading ---
 
 export async function loadGroups() {
@@ -224,21 +241,28 @@ export async function loadGroups() {
 }
 
 export async function loadSnippets() {
-	await loadSnippetCounts();
-	const sort = els.snippetSortSelect
-		? String(els.snippetSortSelect.value || state.snippetSort || 'updated_desc')
-		: state.snippetSort || 'updated_desc';
-	state.snippetSort = sort;
-	state.snippets = await window.snipsApi.listSnippets({
-		query: els.searchInput.value,
-		groupId: '__all__' === state.selectedGroupId ? null : state.selectedGroupId,
-		sort
-	});
-	renderSnippets();
-	renderGroups();
-	updateSnippetCountLabel();
-	if (state.snippets.length && !state.selectedSnippetId) {
-		selectSnippet(state.snippets[0].id);
+	showSkeletonLoader();
+	try {
+		await loadSnippetCounts();
+		const sort = els.snippetSortSelect
+			? String(els.snippetSortSelect.value || state.snippetSort || 'updated_desc')
+			: state.snippetSort || 'updated_desc';
+		state.snippetSort = sort;
+		state.snippets = await window.snipsApi.listSnippets({
+			query: els.searchInput.value,
+			groupId: '__all__' === state.selectedGroupId ? null : state.selectedGroupId,
+			sort
+		});
+		renderSnippets();
+		renderGroups();
+		updateSnippetCountLabel();
+		hideSkeletonLoader();
+		if (state.snippets.length && !state.selectedSnippetId) {
+			selectSnippet(state.snippets[0].id);
+		}
+	} catch (_err) {
+		hideSkeletonLoader();
+		showToast('Could not load snippets. The database may be busy.', 'error', 4200);
 	}
 }
 

@@ -52,6 +52,47 @@ body {
 	background-clip: padding-box;
 }
 
+/* Skeleton loading */
+@keyframes skeleton-pulse {
+	0%,
+	100% {
+		opacity: 0.4;
+	}
+	50% {
+		opacity: 0.8;
+	}
+}
+
+.skeleton {
+	background: var(--border);
+	border-radius: 8px;
+	animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+	height: 14px;
+	margin-bottom: 8px;
+	width: 100%;
+}
+
+.skeleton-line:last-child {
+	width: 60%;
+}
+
+.skeleton-card {
+	height: 52px;
+	margin-bottom: 8px;
+	border-radius: 10px;
+	background: var(--border);
+	animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.is-loading {
+	pointer-events: none;
+	opacity: 0.6;
+	transition: opacity 150ms ease;
+}
+
 .titlebar-drag {
 	position: fixed;
 	top: 0;

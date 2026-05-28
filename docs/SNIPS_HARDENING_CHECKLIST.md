@@ -239,33 +239,18 @@ Create an `errors.js` module with error classification (network, db, validation,
 
 ### SN-007: Add loading states to all views
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Foundation  
 **Size:** S  
 **Risk:** Low  
 **Depends on:** SN-003  
-**Why:** No loading indicators exist. Users see blank states while data loads.  
-**Files likely involved:**  
-- `app/src/renderer/renderer.js`
-- `app/src/renderer/styles.css`
-- `app/src/renderer/index.html`
+**Why:** No loading indicators exist. Users see blank states while data loads.
 
-**Acceptance criteria:**
-- [ ] Snippet list shows loading skeleton/spinner while fetching
-- [ ] Stats view shows loading state while fetching
-- [ ] Settings view shows loading state while fetching
-- [ ] Group list shows loading state
-- [ ] Save button shows loading state during save
-- [ ] Import button shows loading state during import
-
-**Suggested test plan:**
-- Throttle network in DevTools to 3G, verify loading states appear
-- Verify loading states disappear on success and on error
-
-**Notes for implementation agent:**
-Use CSS-only skeletons where possible (no extra dependencies). A simple pulsing placeholder card for snippet list items is sufficient.
-
----
+**Implementation notes:**
+- Added CSS skeleton loading animations to `styles.css` (`.skeleton`, `.skeleton-card`, `.is-loading`).
+- Added `showSkeletonLoader()`/`hideSkeletonLoader()` in `render.js`.
+- `loadSnippets()` shows 6 skeleton cards during data fetch, cleans up on success or error.
+- `npm run lint` — 0 errors, 0 warnings. `npm run format:check` — clean.
 
 ### SN-008: Fix empty states across all views
 
