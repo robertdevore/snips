@@ -13,6 +13,13 @@
 		"make:icns": "npm run make:icns --workspace app",
 		"package:dmg": "npm run helper:build && zsh scripts/make-icns-if-present.sh && npm run package:dmg --workspace app",
 		"helper:build": "zsh scripts/helper-build.sh",
-		"helper:run": "cd helper && swift run SnipsHelper"
+		"helper:run": "cd helper && swift run SnipsHelper",
+		"lint": "npx eslint app/src/",
+		"format": "npx prettier --write app/src/",
+		"format:check": "npx prettier --check app/src/"
+	},
+	"devDependencies": {
+		"eslint": "^9.39.4",
+		"prettier": "^3.8.3"
 	}
 }

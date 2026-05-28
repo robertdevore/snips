@@ -73,7 +73,10 @@ class SnipsDb {
 		const now = Date.now();
 		const groupCount = this.db.prepare('SELECT COUNT(*) AS count FROM groups').get().count;
 		if (0 === groupCount) {
-			this.db.prepare('INSERT INTO groups (id, name, parentId, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)')
+			this.db
+				.prepare(
+					'INSERT INTO groups (id, name, parentId, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)'
+				)
 				.run('default', 'General', null, 0, now, now);
 		}
 
@@ -109,11 +112,15 @@ class SnipsDb {
 	}
 
 	getSnippetCounts() {
-		const rows = this.db.prepare(`
+		const rows = this.db
+			.prepare(
+				`
 			SELECT COALESCE(groupId, 'default') AS groupId, COUNT(*) AS count
 			FROM snippets
 			GROUP BY COALESCE(groupId, 'default')
-		`).all();
+		`
+			)
+			.all();
 		const total = this.db.prepare('SELECT COUNT(*) AS count FROM snippets').get().count;
 		const byGroup = {};
 		for (const row of rows) {
@@ -131,10 +138,14 @@ class SnipsDb {
 		const id = group.id || `group_${now}`;
 		const existing = this.db.prepare('SELECT id FROM groups WHERE id = ?').get(id);
 		if (existing) {
-			this.db.prepare('UPDATE groups SET name = ?, parentId = ?, sortOrder = ?, updatedAt = ? WHERE id = ?')
+			this.db
+				.prepare('UPDATE groups SET name = ?, parentId = ?, sortOrder = ?, updatedAt = ? WHERE id = ?')
 				.run(group.name, group.parentId || null, group.sortOrder || 0, now, id);
 		} else {
-			this.db.prepare('INSERT INTO groups (id, name, parentId, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)')
+			this.db
+				.prepare(
+					'INSERT INTO groups (id, name, parentId, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)'
+				)
 				.run(id, group.name, group.parentId || null, group.sortOrder || 0, now, now);
 		}
 		return this.db.prepare('SELECT * FROM groups WHERE id = ?').get(id);
@@ -164,25 +175,25 @@ class SnipsDb {
 		}
 		let order = 'updatedAt DESC';
 		switch (String(sort || '')) {
-		case 'created_desc':
-			order = 'createdAt DESC';
-			break;
-		case 'created_asc':
-			order = 'createdAt ASC';
-			break;
-		case 'updated_asc':
-			order = 'updatedAt ASC';
-			break;
-		case 'name_asc':
-			order = 'name COLLATE NOCASE ASC';
-			break;
-		case 'name_desc':
-			order = 'name COLLATE NOCASE DESC';
-			break;
-		case 'updated_desc':
-		default:
-			order = 'updatedAt DESC';
-			break;
+			case 'created_desc':
+				order = 'createdAt DESC';
+				break;
+			case 'created_asc':
+				order = 'createdAt ASC';
+				break;
+			case 'updated_asc':
+				order = 'updatedAt ASC';
+				break;
+			case 'name_asc':
+				order = 'name COLLATE NOCASE ASC';
+				break;
+			case 'name_desc':
+				order = 'name COLLATE NOCASE DESC';
+				break;
+			case 'updated_desc':
+			default:
+				order = 'updatedAt DESC';
+				break;
 		}
 		sql += ` ORDER BY favorite DESC, ${order}`;
 		const rows = this.db.prepare(sql).all(...params);
@@ -198,7 +209,10 @@ class SnipsDb {
 	}
 
 	listTags(snippetId) {
-		return this.db.prepare('SELECT tag FROM snippet_tags WHERE snippetId = ? ORDER BY tag ASC').all(snippetId).map((r) => r.tag);
+		return this.db
+			.prepare('SELECT tag FROM snippet_tags WHERE snippetId = ? ORDER BY tag ASC')
+			.all(snippetId)
+			.map((r) => r.tag);
 	}
 
 	saveSnippet(snippet) {
@@ -218,41 +232,49 @@ class SnipsDb {
 		};
 
 		if (existing) {
-			this.db.prepare(`
+			this.db
+				.prepare(
+					`
 				UPDATE snippets
 				SET groupId = ?, name = ?, abbreviation = ?, content = ?, enabled = ?, favorite = ?, notes = ?, triggerMode = ?, caseMode = ?, updatedAt = ?
 				WHERE id = ?
-			`).run(
-				payload.groupId,
-				payload.name,
-				payload.abbreviation,
-				payload.content,
-				payload.enabled,
-				payload.favorite,
-				payload.notes,
-				payload.triggerMode,
-				payload.caseMode,
-				now,
-				id
-			);
+			`
+				)
+				.run(
+					payload.groupId,
+					payload.name,
+					payload.abbreviation,
+					payload.content,
+					payload.enabled,
+					payload.favorite,
+					payload.notes,
+					payload.triggerMode,
+					payload.caseMode,
+					now,
+					id
+				);
 		} else {
-			this.db.prepare(`
+			this.db
+				.prepare(
+					`
 				INSERT INTO snippets (id, groupId, name, abbreviation, content, enabled, favorite, notes, triggerMode, caseMode, createdAt, updatedAt)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`).run(
-				id,
-				payload.groupId,
-				payload.name,
-				payload.abbreviation,
-				payload.content,
-				payload.enabled,
-				payload.favorite,
-				payload.notes,
-				payload.triggerMode,
-				payload.caseMode,
-				now,
-				now
-			);
+			`
+				)
+				.run(
+					id,
+					payload.groupId,
+					payload.name,
+					payload.abbreviation,
+					payload.content,
+					payload.enabled,
+					payload.favorite,
+					payload.notes,
+					payload.triggerMode,
+					payload.caseMode,
+					now,
+					now
+				);
 		}
 
 		this.db.prepare('DELETE FROM snippet_tags WHERE snippetId = ?').run(id);
@@ -283,7 +305,9 @@ class SnipsDb {
 	}
 
 	saveSettings(input) {
-		const stmt = this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+		const stmt = this.db.prepare(
+			'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+		);
 		for (const [key, value] of Object.entries(input || {})) {
 			stmt.run(key, String(value));
 		}
@@ -291,27 +315,33 @@ class SnipsDb {
 	}
 
 	recordEvent(event) {
-		this.db.prepare(`
+		this.db
+			.prepare(
+				`
 			INSERT INTO events (id, snippetId, timestamp, charsInserted, charsSaved, timeSavedMs, appBundleId)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`).run(
-			event.id,
-			event.snippetId,
-			event.timestamp,
-			event.charsInserted,
-			event.charsSaved,
-			event.timeSavedMs,
-			event.appBundleId || null
-		);
+		`
+			)
+			.run(
+				event.id,
+				event.snippetId,
+				event.timestamp,
+				event.charsInserted,
+				event.charsSaved,
+				event.timeSavedMs,
+				event.appBundleId || null
+			);
 	}
 
 	getStats(range) {
 		const now = Date.now();
-		const defaultFrom = now - (7 * 24 * 60 * 60 * 1000);
+		const defaultFrom = now - 7 * 24 * 60 * 60 * 1000;
 		const fromTs = range && range.fromTs ? Number(range.fromTs) : defaultFrom;
 		const toTs = range && range.toTs ? Number(range.toTs) : now;
 
-		const perSnippet = this.db.prepare(`
+		const perSnippet = this.db
+			.prepare(
+				`
 			SELECT
 				s.id,
 				s.name,
@@ -328,15 +358,21 @@ class SnipsDb {
 				AND e.timestamp <= ?
 			GROUP BY s.id
 			ORDER BY expansionCount DESC, s.name ASC
-		`).all(fromTs, toTs);
+		`
+			)
+			.all(fromTs, toTs);
 
-		const summary = this.db.prepare(`
+		const summary = this.db
+			.prepare(
+				`
 			SELECT
 				COUNT(*) AS expansions,
 				COALESCE(SUM(timeSavedMs), 0) AS timeSavedMs
 			FROM events
 			WHERE timestamp >= ? AND timestamp <= ?
-		`).get(fromTs, toTs);
+		`
+			)
+			.get(fromTs, toTs);
 
 		return {
 			perSnippet,
@@ -346,11 +382,15 @@ class SnipsDb {
 	}
 
 	getEnabledSnippetsForHelper() {
-		return this.db.prepare(`
+		return this.db
+			.prepare(
+				`
 			SELECT id, abbreviation, content, triggerMode, caseMode
 			FROM snippets
 			WHERE enabled = 1 AND abbreviation != ''
-		`).all();
+		`
+			)
+			.all();
 	}
 }
 

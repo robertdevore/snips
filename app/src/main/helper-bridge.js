@@ -36,7 +36,7 @@ class HelperBridge {
 					this.onEvent(event);
 					res.statusCode = 200;
 					res.end('ok');
-				} catch (error) {
+				} catch (_error) {
 					res.statusCode = 400;
 					res.end('bad json');
 				}
