@@ -34,7 +34,8 @@ export async function loadSnippetCounts() {
 				byGroup: counts.byGroup || {}
 			};
 		}
-	} catch (_err) {
+	} catch (err) {
+		console.error('loadSnippetCounts failed:', err);
 		state.snippetCounts = { total: 0, byGroup: {} };
 	}
 }
@@ -71,6 +72,7 @@ export function updateToggleIcons() {
 // --- Groups ---
 
 export function renderGroups() {
+	if (!els.groups) return;
 	els.groups.innerHTML = '';
 	for (const group of state.groups) {
 		const row = document.createElement('div');
@@ -128,6 +130,7 @@ export function renderGroups() {
 // --- Snippets ---
 
 export function renderSnippets() {
+	if (!els.snippetList) return;
 	els.snippetList.innerHTML = '';
 
 	if (!state.snippets.length) {
@@ -224,6 +227,7 @@ export function clearEditor() {
  * Shows skeleton loading placeholders in the snippet list.
  */
 function showSkeletonLoader() {
+	if (!els.snippetList) return;
 	els.snippetList.classList.add('is-loading');
 	els.snippetList.innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton-card"></div>').join('');
 }
@@ -232,6 +236,7 @@ function showSkeletonLoader() {
  * Removes skeleton loading placeholders.
  */
 function hideSkeletonLoader() {
+	if (!els.snippetList) return;
 	els.snippetList.classList.remove('is-loading');
 }
 
@@ -245,7 +250,8 @@ export async function loadGroups() {
 			state.selectedGroupId = state.groups[0].id;
 		}
 		renderGroups();
-	} catch (_err) {
+	} catch (err) {
+		console.error('loadGroups failed:', err);
 		showToast('Could not load groups.', 'error', 4200);
 	}
 }
@@ -270,7 +276,8 @@ export async function loadSnippets() {
 		if (state.snippets.length && !state.selectedSnippetId) {
 			selectSnippet(state.snippets[0].id);
 		}
-	} catch (_err) {
+	} catch (err) {
+		console.error('loadSnippets failed:', err);
 		hideSkeletonLoader();
 		showToast('Could not load snippets. The database may be busy.', 'error', 4200);
 	}

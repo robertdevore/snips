@@ -564,8 +564,10 @@ function wireEvents() {
 		};
 	}
 
-	els.searchInput.oninput = async () => {
-		await loadSnippets();
+	let _searchTimer = null;
+	els.searchInput.oninput = () => {
+		clearTimeout(_searchTimer);
+		_searchTimer = setTimeout(() => loadSnippets(), 200);
 	};
 
 	// Macro tools
@@ -629,6 +631,10 @@ function wireEvents() {
 }
 
 export async function boot() {
+	console.log('Snips: boot starting');
+	window.addEventListener('error', (event) => {
+		console.error('Snips renderer error:', event.error || event.message);
+	});
 	window.addEventListener('unhandledrejection', (event) => {
 		console.error('Unhandled rejection:', event.reason);
 		showToast('An unexpected error occurred.', 'error', 5000);
@@ -654,8 +660,11 @@ export async function boot() {
 	initEls();
 	initExtraEls();
 	wireEvents();
+	console.log('Snips: DOM ready, loading data');
 	await loadGroups();
+	console.log('Snips: groups loaded (' + state.groups.length + ')');
 	await loadSnippets();
+	console.log('Snips: snippets loaded (' + state.snippets.length + ')');
 	await loadSettings();
 	await loadStats();
 	await loadHelperStatus();
