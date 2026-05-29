@@ -471,12 +471,6 @@ app.whenReady().then(async () => {
 	createMainWindow();
 	createPaletteWindow();
 	createFillWindow();
-	setupTray();
-	registerGlobalHotkey();
-	installLaunchAgentIfPossible();
-	await ensureHelperRunning();
-
-	await syncHelperConfigWithRetry();
 
 	registerHandlers({
 		db,
@@ -492,6 +486,13 @@ app.whenReady().then(async () => {
 		mainWindow,
 		fillWindow
 	});
+
+	setupTray();
+	registerGlobalHotkey();
+	installLaunchAgentIfPossible();
+	await ensureHelperRunning();
+
+	await syncHelperConfigWithRetry();
 });
 
 app.on('activate', () => {
