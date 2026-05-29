@@ -2,26 +2,28 @@
 
 ## Current AI/CLI Status
 
-**CLI: Does not exist.** The app is Electron-only with no command-line interface. All interaction is through the GUI.
+**CLI: Fully implemented.** 10 commands (list, search, get, create, update, export, import, health, show, doctor). JSON output, dry-run previews, confirmation guards, standardized error shapes. Uses the same `db.js` service layer as the Electron app. No Electron dependency — runs under any Node.js runtime.
 
-**AI: Does not exist.** No AI provider integration, no prompt templates, no generation, no rewriting, no categorization. The only "smart" feature is the template macro system (`[[date]]`, `[[clipboard]]`, `[[fill]]`, `[[cursor]]`), which is deterministic string replacement.
+**AI: Not yet implemented.** No AI provider integration, no prompt templates, no generation, no rewriting, no categorization. The only "smart" feature is the template macro system (`[[date]]`, `[[clipboard]]`, `[[fill]]`, `[[cursor]]`), which is deterministic string replacement.
 
-**Architecture readiness for CLI:** Medium. The data layer (`db.js`) is clean and importable from Node.js directly. No Electron dependency for DB operations. The helper bridge uses TCP and can be reused. The main gap is the lack of a command router, argument parser, and output formatter.
+**Architecture readiness for CLI:** Complete. The data layer (`db.js`) is clean and importable from Node.js directly. Command router, argument parser, and output formatter are all in place at `app/cli/index.js`.
 
 **Architecture readiness for AI:** Low. No provider abstraction, no API key storage, no preview/diff system, no action history, no consent model. These all need to be built from scratch.
 
-## Near-Term CLI Workflow
+## CLI Commands (Implemented)
 
-The smallest useful CLI enables:
+The CLI provides 10 commands, all using the same `db.js` service layer as the Electron app:
 
 1. **List snippets** — `snips list [--json]`
 2. **Search snippets** — `snips search "refund email" [--json]`
 3. **Get snippet** — `snips get <id> [--json]`
-4. **Create snippet** — `snips create --title "..." --abbr "..." --content "..." [--json]`
-5. **Update snippet with confirmation** — `snips update <id> --content "..." --confirm`
-6. **Export/Import JSON** — `snips export --format json --out ./export.json`
-7. **Health check** — `snips health [--json]`
-8. **Config inspection** — `snips config show [--json]`
+4. **Create snippet** — `snips create --name "..." --abbr "..." --content "..." [--group "..."] [--tags "..."] [--dry-run] [--json]`
+5. **Update snippet** — `snips update <id> --content "..." --confirm [--dry-run] [--json]`
+6. **Export snippets** — `snips export [--out ./export.json] [--json]`
+7. **Import snippets** — `snips import --in ./import.json --confirm [--dry-run] [--json]`
+8. **Health check** — `snips health [--json]`
+9. **Config inspection** — `snips show [--json]`
+10. **Config validation** — `snips doctor [--json]`
 
 ### CLI Design Principles
 
@@ -54,11 +56,11 @@ snips copy snippet_1234567890
 
 ### Agent Snippet Creation
 ```bash
-# Create a draft (from a file to avoid shell escaping issues)
-snips create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund" --dry-run
+# Create a snippet with dry-run validation
+snips create --name "Refund Reply v2" --abbr ";refund2" --content "Thank you for your patience..." --group "Support" --tags "email,refund" --dry-run
 
-# Review the dry-run output, then confirm
-snips create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund"
+# Review the dry-run output, then create for real (remove --dry-run)
+snips create --name "Refund Reply v2" --abbr ";refund2" --content "Thank you for your patience..." --group "Support" --tags "email,refund"
 ```
 
 ### Agent Snippet Organization
@@ -76,10 +78,10 @@ snips tag snippet_123 snippet_456 --add "reviewed"
 ### Agent Export/Backup
 ```bash
 # Export for backup
-snips export --format json --out ./backup-$(date +%Y%m%d).json
+snips export --out ./backup-$(date +%Y%m%d).json
 
-# Export for Strata
-snips export --format markdown --out ./strata-notes/
+# Export to stdout for piping
+snips export --json | jq '.snippets | length'
 ```
 
 ## Future AI Workflow
