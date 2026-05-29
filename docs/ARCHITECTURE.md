@@ -52,6 +52,14 @@ Snips is a macOS snippet expander with three components:
 | `preload.js` | Context bridge exposing `snipsApi` to renderer |
 | `preload-fill.js` | Context bridge for fill-in popup window |
 
+### CLI (`app/cli/`)
+
+| File | Purpose |
+|---|---|
+| `index.js` | CLI entry point — 10 commands (list, search, get, create, update, export, import, health, show, doctor) |
+
+The CLI uses the same `db.js` service layer as the Electron main process. No Electron dependency — runs under any Node.js runtime. See `snips help` for full usage.
+
 ### Renderer (`app/src/renderer/`)
 
 | File | Purpose |
