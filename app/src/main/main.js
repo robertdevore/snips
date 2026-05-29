@@ -433,6 +433,21 @@ function installLaunchAgentIfPossible() {
 
 app.whenReady().then(async () => {
 	const dataDir = path.join(app.getPath('userData'), 'data');
+
+	// Migrate database from legacy dev-mode location (snips-app) to production
+	// location (Snips) if the production DB doesn't exist yet.
+	const devDataDir = path.join(
+		app.getPath('appData'),
+		'snips-app',
+		'data'
+	);
+	const prodDbPath = path.join(dataDir, 'snips.db');
+	const devDbPath = path.join(devDataDir, 'snips.db');
+	if (!fs.existsSync(prodDbPath) && fs.existsSync(devDbPath)) {
+		fs.mkdirSync(dataDir, { recursive: true });
+		fs.copyFileSync(devDbPath, prodDbPath);
+	}
+
 	db = new SnipsDb(dataDir);
 	helperBridge = new HelperBridge({
 		onEvent: (event) => {

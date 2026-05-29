@@ -1270,26 +1270,3 @@ a,
 	white-space: nowrap;
 	margin-top: 2px;
 }
-
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #0f1117;
-		--panel: #1a1d27;
-		--panel-muted: #222530;
-		--border: #2d3140;
-		--text: #e4e6ed;
-		--muted: #8b8fa3;
-		--accent-soft: #1f1a14;
-		--shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-	}
-	body {
-		color-scheme: dark;
-	}
-	input,
-	select,
-	textarea {
-		background: #1a1d27;
-		color: var(--text);
-		border-color: var(--border);
-	}
-}
