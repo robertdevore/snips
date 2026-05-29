@@ -52,6 +52,8 @@ snips/
 │   │       ├── toast.js     # Toast notifications
 │   │       ├── import.js    # CSV import UI
 │   │       └── *.html, *.css
+│   ├── cli/
+│   │   └── index.js        # CLI entry point
 │   ├── tests/               # Test files
 │   └── package.json
 ├── helper/                  # Swift native helper
@@ -80,14 +82,40 @@ npm run format
 ## Testing
 
 ```bash
-# Run tests
+# Run unit tests
 cd app && npm test
 
 # Watch mode
 cd app && npm run test:watch
+
+# Test the CLI (requires the app to be installed or running from source)
+node app/cli/index.js health
+node app/cli/index.js list --json
 ```
 
 Tests use [Vitest](https://vitest.dev/). Pure function tests (no Electron dependency) are preferred for unit tests.
+
+### CLI Testing
+
+The CLI can be tested directly with Node.js — no Electron required:
+
+```bash
+# All commands work against the production database
+node app/cli/index.js help
+node app/cli/index.js health --json
+node app/cli/index.js list | wc -l
+node app/cli/index.js search "query"
+node app/cli/index.js get <snippet-id>
+
+# Dry-run mode tests validation without writing
+node app/cli/index.js create --name "Test" --abbr ";test" --content "Hello" --dry-run --json
+node app/cli/index.js update <id> --name "Rename" --dry-run --json
+node app/cli/index.js import --in ./export.json --dry-run --json
+
+# Export to file then verify round-trip
+node app/cli/index.js export --out /tmp/snips-test.json --json
+node app/cli/index.js import --in /tmp/snips-test.json --dry-run --json
+```
 
 ## Commit Conventions
 
