@@ -37,3 +37,17 @@ body {
 	font-size: 12px;
 	color: #9ca3af;
 }
+
+@media (prefers-color-scheme: dark) {
+	body {
+		background: #0f1117;
+		color: #e4e6ed;
+	}
+	#paletteSearch {
+		background: #1a1d27;
+		color: #e4e6ed;
+	}
+	.item {
+		background: #1a1d27;
+	}
+}
