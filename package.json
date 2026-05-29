@@ -15,9 +15,9 @@
 		"helper:build": "zsh scripts/helper-build.sh",
 		"helper:run": "cd helper && swift run SnipsHelper",
 		"cli": "node app/cli/index.js",
-		"lint": "npx eslint app/src/",
-		"format": "npx prettier --write app/src/",
-		"format:check": "npx prettier --check app/src/"
+		"lint": "npx eslint app/src/ app/cli/",
+		"format": "npx prettier --write app/src/ app/cli/",
+		"format:check": "npx prettier --check app/src/ app/cli/"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.4",
