@@ -79,6 +79,8 @@ function wireEvents() {
 	const iconNewGroup = document.getElementById('iconNewGroup');
 	const saveIcon = document.getElementById('saveIcon');
 	const deleteIcon = document.getElementById('deleteIcon');
+	const enabledIcon = document.getElementById('enabledIcon');
+	const favoriteIcon = document.getElementById('favoriteIcon');
 	const groupModal = document.getElementById('groupModal');
 	const groupBackdrop = document.getElementById('groupBackdrop');
 	const groupNameInput = document.getElementById('groupNameInput');
@@ -124,6 +126,14 @@ function wireEvents() {
 	if (deleteIcon) {
 		deleteIcon.innerHTML = ICONS.trash;
 		deleteIcon.style.color = 'var(--muted)';
+	}
+	if (enabledIcon) {
+		enabledIcon.innerHTML = ICONS.enabledOn;
+		enabledIcon.style.color = 'var(--accent)';
+	}
+	if (favoriteIcon) {
+		favoriteIcon.innerHTML = ICONS.favoriteOff;
+		favoriteIcon.style.color = 'var(--muted)';
 	}
 	if (chevron) chevron.innerHTML = ICONS.chevronClosed;
 
