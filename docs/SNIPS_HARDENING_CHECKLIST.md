@@ -625,7 +625,7 @@ Keep list items compact — this is a library view, not a detail view. Don't blo
 
 ### SN-020: Add fuzzy search
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** M  
 **Risk:** Low  
@@ -656,7 +656,7 @@ Implement in main process. Consider a simple scoring function rather than a full
 
 ### SN-021: Add tag input with pills and autocomplete
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** M  
 **Risk:** Low  
@@ -689,7 +689,7 @@ Keep it simple — no external tag library. A custom element or small component.
 
 ### SN-022: Add inline group creation from snippet editor
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** S  
 **Risk:** Low  
@@ -719,7 +719,7 @@ Keep this lightweight — an inline input that replaces the select element tempo
 
 ### SN-023: Add dark mode support
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Editor & Library UX  
 **Size:** M  
 **Risk:** Low  
@@ -782,7 +782,7 @@ Use the existing `events` table to determine recency. Show snippets ordered by `
 
 ### SN-025: Add `[[clipboard]]` privacy warning
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Clipboard & Expansion  
 **Size:** XS  
 **Risk:** Low  
@@ -808,7 +808,7 @@ Don't over-engineer. A simple inline note next to the macro buttons or a one-tim
 
 ### SN-026: Add shortcut conflict detection UX
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Clipboard & Expansion  
 **Size:** S  
 **Risk:** Low  
@@ -868,7 +868,7 @@ Store expected hash in a JSON file next to the helper binary or in the app resou
 
 ### SN-028: Add stats reset functionality
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Stats & Analytics  
 **Size:** S  
 **Risk:** Low  
@@ -897,7 +897,7 @@ Add `db.resetStats(snippetId?)` method. If `snippetId` is provided, delete only 
 
 ### SN-029: Add stats export
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Stats & Analytics  
 **Size:** S  
 **Risk:** Low  
@@ -954,7 +954,7 @@ No code changes to the formula unless a bug is found. Just documentation. Add a 
 
 ### SN-031: Add stats caching/pre-aggregation
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Stats & Analytics  
 **Size:** M  
 **Risk:** Low  
@@ -984,7 +984,7 @@ Daily pre-aggregation is the simplest effective optimization. Table: `stats_dail
 
 ### SN-032: Add snippet list virtualization
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Performance  
 **Size:** M  
 **Risk:** Medium  
@@ -1014,7 +1014,7 @@ Consider using a lightweight virtual scroll approach rather than a library. Simp
 
 ### SN-033: Add optimistic UI updates
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Performance  
 **Size:** M  
 **Risk:** Medium  
@@ -1043,7 +1043,7 @@ This requires the state module (SN-003). Store a copy of state before mutation. 
 
 ### SN-034: Add DB query optimization for snippet listing
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Performance  
 **Size:** S  
 **Risk:** Low  
@@ -1491,7 +1491,7 @@ Keep this document focused on the contract between Snips and Strata. It should b
 
 ### SN-048: Add unit tests for `db.js`
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Tests  
 **Size:** M  
 **Risk:** Low  
@@ -1526,7 +1526,7 @@ Use `better-sqlite3` with `:memory:` for tests. Reset DB before each test. Test 
 
 ### SN-049: Add unit tests for `template-renderer.js`
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Tests  
 **Size:** S  
 **Risk:** Low  
@@ -1557,7 +1557,7 @@ These tests require no Electron, no DB, no DOM. Pure function tests. Write them 
 
 ### SN-050: Add unit tests for CSV import parsing
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Tests  
 **Size:** M  
 **Risk:** Low  
