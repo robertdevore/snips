@@ -14,12 +14,12 @@
 
 The smallest useful CLI enables:
 
-1. **List snippets** — `snips snippets list [--json]`
-2. **Search snippets** — `snips snippets search "refund email" [--json]`
-3. **Get snippet** — `snips snippets get <id> [--json]`
-4. **Create snippet** — `snips snippets create --title "..." --abbr "..." --content "..." [--json]`
-5. **Update snippet with confirmation** — `snips snippets update <id> --content "..." --confirm`
-6. **Export/Import JSON** — `snips snippets export --format json --out ./export.json`
+1. **List snippets** — `snips list [--json]`
+2. **Search snippets** — `snips search "refund email" [--json]`
+3. **Get snippet** — `snips get <id> [--json]`
+4. **Create snippet** — `snips create --title "..." --abbr "..." --content "..." [--json]`
+5. **Update snippet with confirmation** — `snips update <id> --content "..." --confirm`
+6. **Export/Import JSON** — `snips export --format json --out ./export.json`
 7. **Health check** — `snips health [--json]`
 8. **Config inspection** — `snips config show [--json]`
 
@@ -43,43 +43,43 @@ Agents (both human and AI) should interact with Snips through the CLI. The workf
 ### Agent Snippet Retrieval
 ```bash
 # Search for relevant snippets
-snips snippets search "support refund template" --json
+snips search "support refund template" --json
 
 # Get full snippet content
-snips snippets get snippet_1234567890 --json
+snips get snippet_1234567890 --json
 
 # Copy snippet to clipboard
-snips snippets copy snippet_1234567890
+snips copy snippet_1234567890
 ```
 
 ### Agent Snippet Creation
 ```bash
 # Create a draft (from a file to avoid shell escaping issues)
-snips snippets create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund" --dry-run
+snips create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund" --dry-run
 
 # Review the dry-run output, then confirm
-snips snippets create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund"
+snips create --title "Refund Reply v2" --content-file ./draft.md --group "Support" --tags "email,refund"
 ```
 
 ### Agent Snippet Organization
 ```bash
 # Detect potential duplicates (future feature)
-snips snippets detect-duplicates --json
+snips detect-duplicates --json
 
 # Suggest category for untagged snippets (future AI feature)
-snips snippets categorize --dry-run
+snips categorize --dry-run
 
 # Tag batch of snippets
-snips snippets tag snippet_123 snippet_456 --add "reviewed"
+snips tag snippet_123 snippet_456 --add "reviewed"
 ```
 
 ### Agent Export/Backup
 ```bash
 # Export for backup
-snips snippets export --format json --out ./backup-$(date +%Y%m%d).json
+snips export --format json --out ./backup-$(date +%Y%m%d).json
 
 # Export for Strata
-snips snippets export --format markdown --out ./strata-notes/
+snips export --format markdown --out ./strata-notes/
 ```
 
 ## Future AI Workflow
@@ -88,7 +88,7 @@ Safe AI-assisted flows follow this pattern:
 
 ### Flow 1: AI Rewrite Snippet
 1. User selects a snippet in the GUI or CLI
-2. User clicks "AI Rewrite" or runs `snips snippets ai-rewrite <id> --style "more concise"`
+2. User clicks "AI Rewrite" or runs `snips ai-rewrite <id> --style "more concise"`
 3. System sends snippet content + instruction to configured AI provider
 4. AI returns proposed new content
 5. **App shows diff/preview** — side-by-side comparison of old vs new
@@ -172,15 +172,15 @@ snips health                              # App/DB/helper status
 snips config show                         # Settings overview
 snips config get <key>                    # Single setting
 snips config doctor                       # Configuration validation
-snips snippets list [--group <name>]     # List snippets
-snips snippets search <query>             # Search snippets
-snips snippets get <id>                   # Get full snippet
-snips snippets create [options]           # Create snippet
-snips snippets update <id> [options]      # Update snippet
-snips snippets delete <id> --confirm      # Delete snippet
-snips snippets copy <id>                  # Copy to clipboard
-snips snippets export --format json|markdown --out <path>
-snips snippets import <path> [--dry-run]
+snips list [--group <name>]     # List snippets
+snips search <query>             # Search snippets
+snips get <id>                   # Get full snippet
+snips create [options]           # Create snippet
+snips update <id> [options]      # Update snippet
+snips delete <id> --confirm      # Delete snippet
+snips copy <id>                  # Copy to clipboard
+snips export --format json|markdown --out <path>
+snips import <path> [--dry-run]
 snips groups list                         # List groups
 snips groups create <name>                # Create group
 snips groups delete <id> --confirm        # Delete group
@@ -191,12 +191,12 @@ snips stats reset [<snippetId>] --confirm
 
 ### Future (Post-Phase 7)
 ```
-snips snippets ai-rewrite <id> --style "concise" [--dry-run]
-snips snippets ai-generate --prompt "..." [--dry-run]
-snips snippets categorize [--dry-run]
-snips snippets detect-duplicates [--threshold 0.8]
-snips snippets merge <id1> <id2> --confirm
-snips snippets audit-stale
+snips ai-rewrite <id> --style "concise" [--dry-run]
+snips ai-generate --prompt "..." [--dry-run]
+snips categorize [--dry-run]
+snips detect-duplicates [--threshold 0.8]
+snips merge <id1> <id2> --confirm
+snips audit-stale
 snips strata save-snippet <id> --tag snips
 snips strata import-note <noteId> [--dry-run]
 snips strata search-candidates <query>
@@ -234,7 +234,7 @@ snips strata search-candidates "support replies"
 
 ### Export Snippets as Strata Notes (Batch)
 ```bash
-snips snippets export --format markdown --out ./snips-notes/
+snips export --format markdown --out ./snips-notes/
 # Then in Strata:
 for f in ./snips-notes/*.md; do cat "$f" | strata-note.sh read-stdin --tags snips; done
 ```
@@ -259,7 +259,7 @@ Before AI write access exists, these gates must be in place:
 ### CLI First Slice (2-3 sessions)
 1. SN-035: CLI entry point and argument parser
 2. SN-036: `snips health` command
-3. SN-037: `snips snippets list/search/get` (read-only commands first)
+3. SN-037: `snips list/search/get` (read-only commands first)
 4. SN-040: Error shape standardization
 
 After this slice, agents can list, search, and retrieve snippets via CLI. No write operations yet — that comes next.
