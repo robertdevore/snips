@@ -1071,7 +1071,7 @@ Current approach: fetch snippets, then `listTags()` for each snippet in a loop (
 
 ### SN-035: Add CLI entry point and argument parser
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** M  
 **Risk:** Low  
@@ -1102,7 +1102,7 @@ Keep the CLI minimal. No framework (commander, yargs, etc.) unless absolutely ne
 
 ### SN-036: Add `snips health` command
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** S  
 **Risk:** Low  
@@ -1131,7 +1131,7 @@ This command should never error (exit code 0 even if helper is offline). It's a 
 
 ### SN-037: Add `snips snippets` subcommands
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** M  
 **Risk:** Low  
@@ -1170,7 +1170,7 @@ Reuse `db.js` directly (no Electron IPC needed for CLI). The CLI imports and use
 
 ### SN-038: Add `snips config` subcommands
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** S  
 **Risk:** Low  
@@ -1197,7 +1197,7 @@ Reuse `db.js` directly (no Electron IPC needed for CLI). The CLI imports and use
 
 ### SN-039: Add `snips groups` and `snips stats` subcommands
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** S  
 **Risk:** Low  
@@ -1230,7 +1230,7 @@ Reuse existing DB queries. Keep commands simple. Stats date range accepts ISO da
 
 ### SN-040: Add CLI error shape standardization
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** CLI Foundation  
 **Size:** S  
 **Risk:** Low  
@@ -1260,7 +1260,7 @@ Create an `CliError` class with `code`, `message`, `exitCode`. Throw these from 
 
 ### SN-041: Add AI provider abstraction
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** AI Readiness  
 **Size:** L  
 **Risk:** Medium  
@@ -1294,7 +1294,7 @@ Use Electron's `safeStorage` for API key encryption at rest. Do NOT store raw AP
 
 ### SN-042: Add AI preview/diff system
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** AI Readiness  
 **Size:** M  
 **Risk:** Medium  
@@ -1325,7 +1325,7 @@ Keep the diff simple — don't implement a full diff algorithm. Show old vs new 
 
 ### SN-043: Add AI action history and revert
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** AI Readiness  
 **Size:** M  
 **Risk:** Medium  
@@ -1355,7 +1355,7 @@ Store `before_state` as a full snippet snapshot (all fields). This allows comple
 
 ### SN-044: Add per-snippet AI opt-out
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** AI Readiness  
 **Size:** XS  
 **Risk:** Low  
@@ -1388,7 +1388,7 @@ Simple boolean column. Default to enabled for existing snippets (migration sets 
 
 ### SN-045: Add Markdown export for Strata compatibility
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Strata Readiness  
 **Size:** S  
 **Risk:** Low  
@@ -1431,7 +1431,7 @@ This is directly importable by Strata's CLI.
 
 ### SN-046: Add Strata note import scaffolding
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Strata Readiness  
 **Size:** S  
 **Risk:** Low  
@@ -1463,7 +1463,7 @@ This is intentionally CLI-only and minimal. It's a proof-of-concept integration 
 
 ### SN-047: Document Strata integration approach
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Strata Readiness  
 **Size:** XS  
 **Risk:** Low  
@@ -1588,7 +1588,7 @@ Extract the CSV parser to a pure function first (in SN-004). Then test it with s
 
 ### SN-051: Add E2E smoke test script
 
-**Status:** Todo  
+**Status:** Done  
 **Phase:** Tests  
 **Size:** M  
 **Risk:** Medium  

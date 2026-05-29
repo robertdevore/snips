@@ -5,6 +5,9 @@
 	"author": "Snips",
 	"private": true,
 	"main": "src/main/main.js",
+	"bin": {
+		"snips": "./cli/index.js"
+	},
 	"scripts": {
 		"dev": "electron .",
 		"rebuild-native": "electron-rebuild -f -w better-sqlite3",

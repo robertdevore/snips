@@ -14,6 +14,7 @@
 		"package:dmg": "npm run helper:build && zsh scripts/make-icns-if-present.sh && npm run package:dmg --workspace app",
 		"helper:build": "zsh scripts/helper-build.sh",
 		"helper:run": "cd helper && swift run SnipsHelper",
+		"cli": "node app/cli/index.js",
 		"lint": "npx eslint app/src/",
 		"format": "npx prettier --write app/src/",
 		"format:check": "npx prettier --check app/src/"
