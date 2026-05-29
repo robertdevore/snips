@@ -55,6 +55,29 @@ Snips is split into three components:
 - Excluded app bundle IDs
 - Secure Input guard (`IsSecureEventInputEnabled`) and status reporting
 - Tray/menu bar controls (open app, open palette, pause expansions)
+- CLI for scripting, automation, and AI agent workflows
+
+## CLI
+
+Snips includes a command-line interface for managing snippets without the GUI.
+
+```bash
+# Available commands
+snips list                  # List all snippets
+snips search "refund"       # Search snippets by name, abbreviation, or content
+snips get <id>              # Get full snippet details
+snips create --name "Title" --abbr ";t" --content "text"  # Create a snippet
+snips update <id> --content "new" --confirm               # Update a snippet
+snips export --out ./backup.json                          # Export all snippets
+snips import --in ./backup.json --confirm                 # Import snippets
+snips health                # Show database and app status
+snips show                  # Show current configuration
+snips doctor                # Validate configuration and report issues
+```
+
+All commands support `--json` for machine-readable output, `--dry-run` for non-destructive preview (create/update/import), and `--confirm` for destructive operations (update/import). Exit codes are deterministic: 0 = success, 1 = error, 2 = usage error.
+
+See `docs/SNIPS_AI_AND_CLI_READINESS.md` for agent workflow patterns and CLI design principles.
 
 ## Prerequisites
 
