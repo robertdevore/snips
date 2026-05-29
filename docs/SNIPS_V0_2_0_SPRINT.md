@@ -178,15 +178,19 @@ Three new docs provide comprehensive onboarding for contributors:
 
 ### CLI Scaffold (SN-035–SN-040)
 
-A new CLI entry point at `app/cli/index.js` provides:
+A new CLI entry point at `app/cli/index.js` provides 10 flat commands:
 
 ```bash
-snips health              # DB status, snippet/group/event counts
-snips snippets list       # List all snippets (--json for machine-readable)
-snips snippets search -q  # Full-text search
-snips snippets get <id>   # Get a single snippet
-snips config show         # Display current configuration
-snips config doctor       # Diagnose common issues
+snips list                 # List all snippets (--json for machine-readable)
+snips search <query>       # Full-text search
+snips get <id>             # Get a single snippet
+snips create --name "..." --abbr "..." --content "..."  # Create snippet
+snips update <id> --content "..." --confirm             # Update snippet
+snips export [--out <path>]                             # Export snippets to JSON
+snips import --in <path> --confirm                      # Import from JSON
+snips health               # Database and app status
+snips show                 # Display current configuration
+snips doctor               # Diagnose common issues
 ```
 
 All commands return a standardized error shape: `{ error: { code, message } }`.
