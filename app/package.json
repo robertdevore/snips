@@ -61,7 +61,7 @@
 		"@electron/rebuild": "^4.0.3",
 		"electron": "37.2.0",
 		"electron-builder": "^26.0.12",
-		"vitest": "^3.2.4"
+		"vitest": "^4.1.8"
 	},
 	"dependencies": {
 		"better-sqlite3": "^12.4.1"
