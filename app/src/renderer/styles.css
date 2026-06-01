@@ -806,21 +806,13 @@ body {
 }
 
 .toolbar {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-height: 0;
-	height: auto;
-	padding: 4px 12px;
-	margin: 0;
-	overflow: visible;
-	border-bottom: 1px solid var(--border);
-	flex-shrink: 0;
+	display: none;
 }
 
 .toolbar-menu-wrap {
 	position: relative;
 	margin-left: auto;
+	display: none;
 }
 
 .toolbar-menu-btn {

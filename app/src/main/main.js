@@ -136,11 +136,40 @@ function refreshTray() {
 }
 
 function setupTray() {
-	const tinyTemplate =
-		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAHElEQVR4nGNgGAWjYBSMglEwCkbBKBgFo2AUjAIA6RQAAR2j8E4AAAAASUVORK5CYII=';
-	const icon = nativeImage.createFromDataURL(tinyTemplate);
-	icon.setTemplateImage(true);
-	tray = new Tray(icon);
+	// Resolve the app icon for the tray. In dev mode it lives at
+	// app/build/icon.png; in packaged builds it's bundled inside the asar
+	// at the same relative location.
+	const iconCandidates = [
+		path.join(__dirname, '../../build/icon.png'),
+		path.join(process.resourcesPath || '', '..', 'build', 'icon.png')
+	];
+
+	let trayIcon = null;
+	for (const candidate of iconCandidates) {
+		try {
+			if (fs.existsSync(candidate)) {
+				trayIcon = nativeImage.createFromPath(candidate);
+				break;
+			}
+		} catch (_e) { /* keep looking */ }
+	}
+
+	if (!trayIcon) {
+		// Fallback: create a simple 22x22 cyan-filled circle so the tray
+		// spot is never blank.
+		trayIcon = nativeImage.createFromDataURL(
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADE9L6dAAAAS0lEQVRIx2NgYGD4z0ABYKJgHAbGUUDzQcEMNDfqow44hbZB04Pz1x0Dlq0//7T4D+6dAYNixWDs4fP/5bBH/8JkExD9EQgcAAAn1wQJ7L44lgAAAABJRU5ErkJggg=='
+		);
+	}
+
+	// macOS menu bar: 22×22 logical px (44×44 for Retina).
+	// Do NOT use setTemplateImage — the icon is full-color, and template
+	// mode would wash it out to a white square on the menu bar.
+	const sized = trayIcon.isEmpty()
+		? trayIcon
+		: trayIcon.resize({ width: 22, height: 22 });
+
+	tray = new Tray(sized);
 	tray.on('click', () => {
 		showMainWindow();
 	});
@@ -432,6 +461,12 @@ function installLaunchAgentIfPossible() {
 }
 
 app.whenReady().then(async () => {
+	// Hide the Dock icon so Snips runs as a menu bar agent (like CleanShot X).
+	// The tray icon is the only persistent UI; windows open on demand.
+	if (process.platform === 'darwin' && app.dock) {
+		app.dock.hide();
+	}
+
 	const dataDir = path.join(app.getPath('userData'), 'data');
 
 	// Migrate database from legacy dev-mode location (snips-app) to production
