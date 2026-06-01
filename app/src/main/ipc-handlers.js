@@ -161,7 +161,13 @@ function registerHandlers(deps) {
 		return { ok: true, data: stats };
 	});
 
-	// --- Palette ---
+	// --- Window ---
+
+	ipcMain.handle('window:show', () => {
+		const { showMainWindow } = deps;
+		if (typeof showMainWindow === 'function') showMainWindow();
+		return { ok: true };
+	});
 
 	ipcMain.handle('palette:open', () => {
 		showPalette();

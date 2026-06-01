@@ -78,7 +78,19 @@
 				</div>
 			</aside>
 			<main class="main-column">
-				<header class="toolbar"></header>
+				<header class="toolbar">
+					<div class="toolbar-menu-wrap">
+						<button id="toolbarMenuBtn" class="toolbar-menu-btn" aria-label="Open menu" title="Menu">
+							<span id="toolbarMenuIcon" class="toolbar-menu-icon"></span>
+						</button>
+						<div id="toolbarMenuDropdown" class="toolbar-menu-dropdown" hidden>
+							<button class="toolbar-menu-item" data-action="open-snips">Open Snips</button>
+							<button class="toolbar-menu-item" data-action="open-palette">Open Palette</button>
+							<hr class="toolbar-menu-separator" />
+							<button class="toolbar-menu-item" data-action="open-settings">Settings</button>
+						</div>
+					</div>
+				</header>
 				<section id="libraryView" class="view">
 					<section class="content-grid">
 						<div class="snippet-list-wrap">

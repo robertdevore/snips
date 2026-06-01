@@ -481,6 +481,7 @@ app.whenReady().then(async () => {
 		registerGlobalHotkey,
 		refreshTray,
 		showPalette,
+		showMainWindow,
 		findHelperBinaryPath,
 		restartHelper,
 		mainWindow,

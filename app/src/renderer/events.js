@@ -583,6 +583,53 @@ function wireEvents() {
 		};
 	});
 
+	// Toolbar menu
+	const toolbarMenuBtn = document.getElementById('toolbarMenuBtn');
+	const toolbarMenuIcon = document.getElementById('toolbarMenuIcon');
+	const toolbarMenuDropdown = document.getElementById('toolbarMenuDropdown');
+
+	if (toolbarMenuIcon) toolbarMenuIcon.innerHTML = ICONS.listMenu;
+
+	if (toolbarMenuBtn && toolbarMenuDropdown) {
+		const closeDropdown = () => {
+			toolbarMenuDropdown.hidden = true;
+		};
+
+		const toggleDropdown = () => {
+			toolbarMenuDropdown.hidden = !toolbarMenuDropdown.hidden;
+		};
+
+		toolbarMenuBtn.onclick = (e) => {
+			e.stopPropagation();
+			toggleDropdown();
+		};
+
+		// Close dropdown when clicking outside
+		document.addEventListener('click', (e) => {
+			if (!toolbarMenuBtn.contains(e.target) && !toolbarMenuDropdown.contains(e.target)) {
+				closeDropdown();
+			}
+		});
+
+		// Dropdown item actions
+		toolbarMenuDropdown.querySelectorAll('.toolbar-menu-item').forEach((item) => {
+			item.onclick = async (e) => {
+				e.stopPropagation();
+				const action = item.getAttribute('data-action');
+				closeDropdown();
+
+				if ('open-snips' === action) {
+					await window.snipsApi.showMainWindow();
+				} else if ('open-palette' === action) {
+					await window.snipsApi.openPalette();
+				} else if ('open-settings' === action) {
+					show_view('settingsView');
+					await loadSettings();
+				}
+			};
+		});
+	}
+
 	// Custom events
 	document.addEventListener('group:edit', (e) => {
 		openGroupModalForEdit(e.detail);
