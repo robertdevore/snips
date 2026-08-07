@@ -105,6 +105,7 @@ final class SnipsHelper {
 	private var snippets: [Snippet] = []
 	private var snippetById: [String: Snippet] = [:]
 	private var endingsMap: [Character: [Snippet]] = [:]
+	private var excludedAppBundleIds: Set<String> = []
 	private var settings = HelperSettings(enabled: true, expandOn: "whitespace", maxBufferLength: 200, excludedApps: [], secureInputBehavior: "disable", pauseExpansions: false, eventCallbackUrl: "", wpm: 220, charsPerWord: 6)
 	private var buffer = ""
 	private var isInjecting = false
@@ -114,6 +115,10 @@ final class SnipsHelper {
 	private var listenEventAccessGranted = false
 	private var postEventAccessGranted = false
 	private var eventTapActive = false
+	private var secureInputEnabled = false
+	private var frontmostBundleId: String?
+	private var frontmostProcessIdentifier: pid_t?
+	private var workspaceObserver: NSObjectProtocol?
 	private var permissionTimer: Timer?
 	private let queue = DispatchQueue(label: "com.snips.helper.event", qos: .userInteractive)
 	private let fillLock = NSLock()
@@ -131,6 +136,24 @@ final class SnipsHelper {
 		checkAccessibilityPermission(prompt: false)
 		checkListenEventAccess(prompt: false)
 		checkPostEventAccess(prompt: false)
+		refreshSecureInputState()
+		updateFrontmostApplication(NSWorkspace.shared.frontmostApplication)
+		workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+			forName: NSWorkspace.didActivateApplicationNotification,
+			object: nil,
+			queue: OperationQueue.main
+		) { [weak self] notification in
+				let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+				guard let self = self else {
+					return
+				}
+				self.updateFrontmostApplication(application)
+				let previousSecureInput = self.secureInputEnabled
+				self.refreshSecureInputState()
+				if previousSecureInput != self.secureInputEnabled {
+					self.sendStatusEvent()
+				}
+			}
 		startEventTap()
 		startPermissionMonitoring()
 		sendStatusEvent()
@@ -167,13 +190,15 @@ final class SnipsHelper {
 			let previous = self.accessibilityGranted
 			let previousListen = self.listenEventAccessGranted
 			let previousPost = self.postEventAccessGranted
+			let previousSecureInput = self.secureInputEnabled
 			self.checkAccessibilityPermission(prompt: false)
 			self.checkListenEventAccess(prompt: false)
 			self.checkPostEventAccess(prompt: false)
+			self.refreshSecureInputState()
 			if self.accessibilityGranted && self.eventTap == nil {
 				self.startEventTap()
 			}
-			if previous != self.accessibilityGranted || previousListen != self.listenEventAccessGranted || previousPost != self.postEventAccessGranted {
+			if previous != self.accessibilityGranted || previousListen != self.listenEventAccessGranted || previousPost != self.postEventAccessGranted || previousSecureInput != self.secureInputEnabled {
 				self.sendStatusEvent()
 			}
 		}
@@ -359,6 +384,7 @@ final class SnipsHelper {
 		}
 		endingsMap = map
 		snippetById = byId
+		excludedAppBundleIds = Set(payload.settings.excludedApps)
 		if buffer.count > settings.maxBufferLength {
 			buffer = String(buffer.suffix(settings.maxBufferLength))
 		}
@@ -406,8 +432,7 @@ final class SnipsHelper {
 		if isInjecting || !settings.enabled || settings.pauseExpansions {
 			return Unmanaged.passUnretained(event)
 		}
-		if isSecureInputEnabled() {
-			sendStatusEvent()
+		if secureInputEnabled {
 			if "ignore" != settings.secureInputBehavior {
 				return Unmanaged.passUnretained(event)
 			}
@@ -456,18 +481,11 @@ final class SnipsHelper {
 		let isWhitespaceDelimiter = " " == typed || "\n" == typed || "\t" == typed
 		let isPunctuationDelimiter = typed.rangeOfCharacter(from: CharacterSet.punctuationCharacters) != nil
 		let isDelimiter = isWhitespaceDelimiter || isPunctuationDelimiter
-		let typedWithoutDelimiter = isDelimiter ? String(buffer.dropLast(typed.count)) : buffer
-
-		var candidates: [Snippet] = []
-		if isDelimiter {
-			candidates = snippets
-		} else if let last = typed.last, let byEnding = endingsMap[last] {
-			candidates = byEnding
-		}
+		let targetBuffer = isDelimiter ? String(buffer.dropLast(typed.count)) : buffer
+		let candidates = targetBuffer.last.flatMap { endingsMap[$0] } ?? []
 
 		for snippet in candidates {
 			let abbr = snippet.abbreviation
-			let targetBuffer = isDelimiter ? typedWithoutDelimiter : buffer
 			if targetBuffer.hasSuffix(abbr) {
 				if shouldExpand(snippet: snippet, lastTyped: typed, isDelimiter: isDelimiter) {
 					let suppressCurrentKey = "immediate" == snippet.triggerMode
@@ -512,8 +530,8 @@ final class SnipsHelper {
 		defer {
 			isInjecting = false
 		}
-		let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
-		let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+		let frontmostPid = frontmostProcessIdentifier
+		let frontmostBundleId = self.frontmostBundleId
 		let hasFill = snippet.content.contains("[[fill:")
 		let deleteCount = suppressCurrentKey ? max(0, typedLength - 1) : typedLength
 		let output: String
@@ -774,14 +792,23 @@ final class SnipsHelper {
 	}
 
 	private func isExcludedFrontmostApp() -> Bool {
-		guard let bundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+		guard let bundleId = frontmostBundleId else {
 			return false
 		}
-		return settings.excludedApps.contains(bundleId)
+		return excludedAppBundleIds.contains(bundleId)
 	}
 
 	private func isSecureInputEnabled() -> Bool {
-		return IsSecureEventInputEnabled()
+		return secureInputEnabled
+	}
+
+	private func refreshSecureInputState() {
+		secureInputEnabled = IsSecureEventInputEnabled()
+	}
+
+	private func updateFrontmostApplication(_ application: NSRunningApplication?) {
+		frontmostProcessIdentifier = application?.processIdentifier
+		frontmostBundleId = application?.bundleIdentifier
 	}
 
 	private func emitExpansionEvent(snippet: Snippet, output: String) {
@@ -799,7 +826,7 @@ final class SnipsHelper {
 				"charsInserted": charsInserted,
 				"charsSaved": charsSaved,
 				"timeSavedMs": timeSavedMs,
-				"appBundleId": NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+				"appBundleId": frontmostBundleId ?? ""
 			]
 		]
 		postEvent(eventPayload)
