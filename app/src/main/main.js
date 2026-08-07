@@ -13,6 +13,8 @@ let fillWindow;
 let tray;
 let db;
 let helperBridge;
+let fillWindowReady = false;
+let pendingFillPayload = null;
 let helperStatus = {
 	secureInput: false,
 	accessibilityEnabled: false,
@@ -82,6 +84,7 @@ function createPaletteWindow() {
 }
 
 function createFillWindow() {
+	fillWindowReady = false;
 	fillWindow = new BrowserWindow({
 		width: 420,
 		height: 320,
@@ -101,7 +104,33 @@ function createFillWindow() {
 			allowRunningInsecureContent: false
 		}
 	});
-	fillWindow.loadFile(path.join(__dirname, '../renderer/fill.html'));
+	const windowRef = fillWindow;
+	windowRef.webContents.once('did-finish-load', () => {
+		if (fillWindow !== windowRef || windowRef.isDestroyed()) {
+			return;
+		}
+		fillWindowReady = true;
+		if (pendingFillPayload) {
+			showFillWindow(pendingFillPayload);
+		}
+	});
+	windowRef.loadFile(path.join(__dirname, '../renderer/fill.html'));
+}
+
+function showFillWindow(payload) {
+	pendingFillPayload = payload;
+	if (!fillWindow || fillWindow.isDestroyed()) {
+		createFillWindow();
+	}
+	if (!fillWindowReady || !fillWindow || fillWindow.isDestroyed()) {
+		return;
+	}
+	const nextPayload = pendingFillPayload;
+	pendingFillPayload = null;
+	fillWindow.center();
+	fillWindow.show();
+	fillWindow.focus();
+	fillWindow.webContents.send('fill:init', nextPayload);
 }
 
 function refreshTray() {
@@ -151,7 +180,9 @@ function setupTray() {
 				trayIcon = nativeImage.createFromPath(candidate);
 				break;
 			}
-		} catch (_e) { /* keep looking */ }
+		} catch (_e) {
+			/* keep looking */
+		}
 	}
 
 	if (!trayIcon) {
@@ -165,14 +196,9 @@ function setupTray() {
 	// macOS menu bar: 22×22 logical px (44×44 for Retina).
 	// Do NOT use setTemplateImage — the icon is full-color, and template
 	// mode would wash it out to a white square on the menu bar.
-	const sized = trayIcon.isEmpty()
-		? trayIcon
-		: trayIcon.resize({ width: 22, height: 22 });
+	const sized = trayIcon.isEmpty() ? trayIcon : trayIcon.resize({ width: 22, height: 22 });
 
 	tray = new Tray(sized);
-	tray.on('click', () => {
-		showMainWindow();
-	});
 	refreshTray();
 }
 
@@ -492,13 +518,7 @@ app.whenReady().then(async () => {
 				mainWindow.webContents.send('helper:status', helperStatus);
 			}
 			if ('fill_request' === event.type) {
-				if (!fillWindow || fillWindow.isDestroyed()) {
-					createFillWindow();
-				}
-				fillWindow.center();
-				fillWindow.show();
-				fillWindow.focus();
-				fillWindow.webContents.send('fill:init', event.payload);
+				showFillWindow(event.payload);
 			}
 		}
 	});
@@ -520,7 +540,8 @@ app.whenReady().then(async () => {
 		findHelperBinaryPath,
 		restartHelper,
 		mainWindow,
-		fillWindow
+		fillWindow,
+		getFillWindow: () => fillWindow
 	});
 
 	setupTray();

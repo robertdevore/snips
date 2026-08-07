@@ -38,7 +38,6 @@ async function submit(cancelled) {
 		values: cancelled ? {} : collectValues()
 	};
 	window.snipsFillApi.respond(payload);
-	window.close();
 }
 
 document.getElementById('okBtn').onclick = () => submit(false);

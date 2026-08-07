@@ -25,6 +25,7 @@ const { validateSnippet } = require('./validation');
  * @param {Function} deps.restartHelper - restarts the helper process
  * @param {object} deps.mainWindow - main BrowserWindow reference
  * @param {object} deps.fillWindow - fill BrowserWindow reference
+ * @param {Function} deps.getFillWindow - returns the current fill BrowserWindow reference
  */
 function registerHandlers(deps) {
 	const {
@@ -39,7 +40,8 @@ function registerHandlers(deps) {
 		findHelperBinaryPath,
 		restartHelper,
 		mainWindow,
-		fillWindow
+		fillWindow,
+		getFillWindow
 	} = deps;
 
 	// --- Groups ---
@@ -272,19 +274,13 @@ function registerHandlers(deps) {
 		const requestId = payload.requestId;
 		const values = payload.values || {};
 		const cancelled = !!payload.cancelled;
-		if (fillWindow && !fillWindow.isDestroyed()) {
+		const activeFillWindow = typeof getFillWindow === 'function' ? getFillWindow() : fillWindow;
+		if (activeFillWindow && !activeFillWindow.isDestroyed()) {
 			try {
-				fillWindow.hide();
+				activeFillWindow.hide();
 			} catch (_error) {
 				// Ignore
 			}
-			setTimeout(() => {
-				try {
-					fillWindow.close();
-				} catch (_error) {
-					// Ignore
-				}
-			}, 250);
 		}
 		try {
 			app.hide();
