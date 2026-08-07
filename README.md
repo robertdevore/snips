@@ -59,7 +59,7 @@ Snips is split into three components:
 
 ## CLI
 
-Snips includes a command-line interface for managing snippets without the GUI.
+Snips includes a command-line interface for managing snippets without the GUI. See the shareable [CLI usage guide](docs/CLI_USAGE.md) for installation, command reference, automation examples, backups, restores, and safety notes.
 
 ```bash
 # Available commands
@@ -175,7 +175,7 @@ rm -rf "$HOME/Library/Application Support/Snips"
 
 - TextExpander CSV import is available in **Settings → Advanced → Import from TextExpander (CSV)**.
   - You can also drag & drop multiple CSVs to import each file into a group named after its filename.
-- Snips is local-only and export is not implemented yet.
+- Snips is local-only. The CLI supports JSON export; see the [CLI usage guide](docs/CLI_USAGE.md).
 
 ## Packaging and distribution notes (macOS)
 
@@ -269,4 +269,3 @@ Indexes:
 - Ensure `node_modules/`, `app/dist/`, `app/data/`, and built DMGs are not committed (see `.gitignore`).
 - Build a DMG with `npm run package:dmg`.
 - Test permissions on a fresh install (Accessibility + Input Monitoring).
-
