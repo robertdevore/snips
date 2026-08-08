@@ -827,7 +827,9 @@ body {
 	background: transparent;
 	color: var(--muted);
 	cursor: pointer;
-	transition: background 120ms ease, color 120ms ease;
+	transition:
+		background 120ms ease,
+		color 120ms ease;
 }
 
 .toolbar-menu-btn:hover {
