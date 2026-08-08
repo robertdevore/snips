@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 - 2026-08-08
+
+### Added
+
+- Added a scriptable CLI for listing, searching, creating, updating, importing, exporting, and diagnosing Snips data, with JSON output, dry-run previews, and confirmation gates.
+- Added JSON backup/export support, multi-file CSV drag-and-drop import, richer statistics, keyboard shortcuts, loading states, and empty states.
+- Added an in-app navigation menu and converted Snips into a proper macOS menu bar agent with tray controls for opening Snips, opening the palette, pausing expansions, and quitting.
+- Added automated tests for template rendering and CSV import, plus ESLint and Prettier checks.
+
+### Changed
+
+- Split the renderer and main process into focused modules and hardened Electron windows with context isolation, sandboxing, and disabled Node integration.
+- Improved helper performance by reducing work performed for every keystroke.
+- Updated Electron, Vitest, and transitive dependencies to resolve known security advisories.
+
+### Fixed
+
+- Made fill-in prompt delivery reliable and prevented tray-menu interactions from opening the main window.
+- Restored reliable window activation, debounced search, initial toggle state, helper synchronization for large snippet libraries, and migration from the legacy development database path.
+
 ## 0.2.1 - 2026-02-26
 
 ### FIX

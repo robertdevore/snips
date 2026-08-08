@@ -2,14 +2,18 @@
 
 Snips is a macOS snippet expansion app built with Electron + a native Swift helper.
 
+Latest release: **v0.3.0** (August 8, 2026)
+
 ## Install (DMG)
 
-1. Download the latest `Snips-*.dmg` from GitHub Releases.
+1. Download the DMG for your Mac from the [v0.3.0 release](https://github.com/robertdevore/snips/releases/tag/v0.3.0):
+	- Apple silicon: `Snips-0.3.0-arm64.dmg`
+	- Intel: `Snips-0.3.0.dmg`
 2. Drag **Snips.app** into **/Applications**.
 3. Open Snips.
 4. Grant permissions (see **First-run permissions** below).
 
-Note: On first launch, macOS Gatekeeper may block the app if it’s unsigned/not notarized. If so, use **System Settings → Privacy & Security** and allow it.
+The release includes `SHA256SUMS.txt` so you can verify the downloaded installer with `shasum -a 256 -c SHA256SUMS.txt`. On first launch, macOS Gatekeeper may block the app because this release is not notarized. If so, use **System Settings → Privacy & Security** and allow it.
 
 ## Quick start
 
@@ -56,6 +60,7 @@ Snips is split into three components:
 - Secure Input guard (`IsSecureEventInputEnabled`) and status reporting
 - Tray/menu bar controls (open app, open palette, pause expansions)
 - CLI for scripting, automation, and AI agent workflows
+- JSON backup and restore with dry-run and confirmation safeguards
 
 ## CLI
 
@@ -120,6 +125,9 @@ npm run package:dmg
 Artifacts are generated under:
 
 - `app/dist/`
+- `app/dist/Snips-<version>.dmg` (Intel)
+- `app/dist/Snips-<version>-arm64.dmg` (Apple silicon)
+- `app/dist/SHA256SUMS.txt`
 
 ## First-run permissions
 
@@ -267,5 +275,8 @@ Indexes:
 ## Release checklist (practical)
 
 - Ensure `node_modules/`, `app/dist/`, `app/data/`, and built DMGs are not committed (see `.gitignore`).
+- Confirm `npm audit` and GitHub Dependabot report no open vulnerabilities.
+- Run the test, lint, and formatting checks.
 - Build a DMG with `npm run package:dmg`.
+- Verify both architecture-specific DMGs and their checksums before publishing the release.
 - Test permissions on a fresh install (Accessibility + Input Monitoring).
