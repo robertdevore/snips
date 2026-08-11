@@ -15,7 +15,14 @@ function render() {
 	items.slice(0, 30).forEach((item, index) => {
 		const row = document.createElement('div');
 		row.className = `item${index === selected ? ' active' : ''}`;
-		row.innerHTML = `<div><strong>${item.name}</strong></div><div class="meta">${item.abbreviation}</div>`;
+		const title = document.createElement('div');
+		const strong = document.createElement('strong');
+		strong.textContent = item.name || '';
+		title.appendChild(strong);
+		const meta = document.createElement('div');
+		meta.className = 'meta';
+		meta.textContent = item.abbreviation || '';
+		row.append(title, meta);
 		row.onclick = () => {
 			selected = index;
 			insertSelected();

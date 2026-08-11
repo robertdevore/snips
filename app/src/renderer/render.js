@@ -122,9 +122,14 @@ export function renderGroups() {
 		}
 		els.groups.appendChild(row);
 	}
-	els.groupSelect.innerHTML = state.groups
-		.map((group) => `<option value="${group.id}">${group.name}</option>`)
-		.join('');
+	els.groupSelect.replaceChildren(
+		...state.groups.map((group) => {
+			const option = document.createElement('option');
+			option.value = group.id;
+			option.textContent = group.name;
+			return option;
+		})
+	);
 }
 
 // --- Snippets ---
@@ -388,13 +393,31 @@ export async function loadStats(rangeOverride) {
 		{ bar: extra.statsBarChartEl, pie: extra.statsPieChartEl, legend: extra.statsPieLegendEl },
 		stats
 	);
-	const rows = (stats.perSnippet || [])
-		.slice(0, 12)
-		.map((row) => {
-			return `<tr><td>${row.abbreviation}</td><td>${row.expansionCount}</td><td>${formatDurationMs(row.timeSavedMsTotal || 0)}</td></tr>`;
-		})
-		.join('');
-	els.topStats.innerHTML = `<table class="stats-table"><thead><tr><th>Snippet</th><th>Uses</th><th>Saved</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty-state">No usage data yet. Start using snippets to see stats.</td></tr>'}</tbody></table>`;
+	const table = document.createElement('table');
+	table.className = 'stats-table';
+	const head = table.createTHead().insertRow();
+	for (const label of ['Snippet', 'Uses', 'Saved'])
+		head.appendChild(document.createElement('th')).textContent = label;
+	const body = table.createTBody();
+	const topRows = (stats.perSnippet || []).slice(0, 12);
+	if (!topRows.length) {
+		const cell = body.insertRow().insertCell();
+		cell.colSpan = 3;
+		cell.className = 'empty-state';
+		cell.textContent = 'No usage data yet. Start using snippets to see stats.';
+	} else {
+		for (const row of topRows) {
+			const tr = body.insertRow();
+			for (const value of [
+				row.abbreviation || '',
+				row.expansionCount || 0,
+				formatDurationMs(row.timeSavedMsTotal || 0)
+			]) {
+				tr.insertCell().textContent = String(value);
+			}
+		}
+	}
+	els.topStats.replaceChildren(table);
 }
 
 // --- Helper status ---
