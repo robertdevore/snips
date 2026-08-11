@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const { makeId, chunkIds } = require('./db-utils');
 
 /**
  * @typedef {object} Group
@@ -232,7 +233,7 @@ class SnipsDb {
 	 */
 	saveGroup(group) {
 		const now = Date.now();
-		const id = group.id || `group_${now}`;
+		const id = group.id || makeId('group');
 		const existing = this.db.prepare('SELECT id FROM groups WHERE id = ?').get(id);
 		if (existing) {
 			this.db
@@ -315,7 +316,31 @@ class SnipsDb {
 		}
 		sql += ` ORDER BY favorite DESC, ${order}`;
 		const rows = this.db.prepare(sql).all(...params);
-		return rows.map((row) => ({ ...row, tags: this.listTags(row.id) }));
+		const tagsBySnippet = this.listTagsForSnippets(rows.map((row) => row.id));
+		return rows.map((row) => ({ ...row, tags: tagsBySnippet.get(row.id) || [] }));
+	}
+
+	/**
+	 * Loads tags for many snippets in bounded batches, avoiding one query per row.
+	 * @param {string[]} snippetIds
+	 * @returns {Map<string,string[]>}
+	 */
+	listTagsForSnippets(snippetIds) {
+		const tagsBySnippet = new Map();
+		for (const batch of chunkIds(snippetIds)) {
+			const placeholders = batch.map(() => '?').join(',');
+			const rows = this.db
+				.prepare(
+					`SELECT snippetId, tag FROM snippet_tags WHERE snippetId IN (${placeholders}) ORDER BY tag ASC`
+				)
+				.all(...batch);
+			for (const row of rows) {
+				const tags = tagsBySnippet.get(row.snippetId) || [];
+				tags.push(row.tag);
+				tagsBySnippet.set(row.snippetId, tags);
+			}
+		}
+		return tagsBySnippet;
 	}
 
 	/**
@@ -361,7 +386,7 @@ class SnipsDb {
 	 */
 	saveSnippet(snippet) {
 		const now = Date.now();
-		const id = snippet.id || `snippet_${now}`;
+		const id = snippet.id || makeId('snippet');
 		const existing = this.db.prepare('SELECT id FROM snippets WHERE id = ?').get(id);
 		const payload = {
 			groupId: snippet.groupId || 'default',
