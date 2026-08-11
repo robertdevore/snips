@@ -13,6 +13,9 @@
  *   snips health [--json]
  *   snips show [--json]
  *   snips doctor [--json]
+ *   snips strata save-snippet <id> [--strata-url <url>]
+ *   snips strata import-note <note-id> [--dry-run|--confirm]
+ *   snips strata search-candidates <query>
  *
  * All commands support --json for machine-readable output.
  * Exit codes: 0 = success, 1 = error, 2 = usage error.
@@ -21,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const APP_VERSION = require('../package.json').version;
 
 // ---------------------------------------------------------------------------
 // Path resolution
@@ -77,7 +81,7 @@ function positionalArgs() {
 		}
 		// Check if this flag takes a value
 		const flagName = a.replace(/^--?/, '');
-		const valueFlags = ['name', 'abbr', 'content', 'group', 'tags', 'out', 'in', 'format'];
+		const valueFlags = ['name', 'abbr', 'content', 'group', 'tags', 'out', 'in', 'format', 'strata-url'];
 		if (valueFlags.indexOf(flagName) >= 0 && i + 1 < args.length && !args[i + 1].startsWith('-')) {
 			i += 2; // skip flag and its value
 		} else {
@@ -144,7 +148,7 @@ function loadValidate() {
 function showHelp() {
 	console.log(
 		[
-			'Snips CLI v0.2.0 — snippet manager',
+			`Snips CLI v${APP_VERSION} — snippet manager`,
 			'',
 			'Usage: snips <command> [options]',
 			'',
@@ -159,6 +163,7 @@ function showHelp() {
 			'  health                Show database and app status',
 			'  show                  Show current configuration',
 			'  doctor                Validate configuration and report issues',
+			'  strata                Exchange snippets with the Strata local API',
 			'',
 			'Create options:',
 			'  --name "Title"        Snippet name (required)',
@@ -190,6 +195,110 @@ function showHelp() {
 			'Exit codes: 0 = success, 1 = error, 2 = usage error'
 		].join('\n')
 	);
+}
+
+async function strataRequest(pathname, options) {
+	const base = (getFlagValue('strata-url') || process.env.STRATA_URL || 'http://127.0.0.1:3939').replace(/\/$/, '');
+	const headers = { Accept: 'application/json', ...((options && options.headers) || {}) };
+	if (process.env.STRATA_API_TOKEN) headers['X-Strata-Token'] = process.env.STRATA_API_TOKEN;
+	const response = await globalThis.fetch(base + pathname, {
+		...options,
+		headers,
+		signal: globalThis.AbortSignal.timeout(5000)
+	});
+	const text = await response.text();
+	let data = {};
+	try {
+		data = text ? JSON.parse(text) : {};
+	} catch (_error) {
+		throw new Error(`Strata returned non-JSON (${response.status}).`);
+	}
+	if (!response.ok) throw new Error(data.error || data.message || `Strata request failed (${response.status}).`);
+	return data;
+}
+
+function noteToSnippet(note) {
+	const content = String(note.content || '').trim();
+	const lines = content.split(/\r?\n/);
+	const heading = lines[0] && /^#\s+/.test(lines[0]) ? lines.shift().replace(/^#\s+/, '').trim() : 'Imported note';
+	const body = lines.join('\n').trim() || content;
+	const stem =
+		heading
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '')
+			.slice(0, 16) || 'note';
+	return {
+		name: heading,
+		abbreviation: `;${stem}`,
+		content: body,
+		groupId: 'default',
+		tags: Array.from(new Set(['strata'].concat(Array.isArray(note.tags) ? note.tags : []))),
+		enabled: true,
+		notes: `Imported from Strata note ${note.id}`
+	};
+}
+
+async function cmdStrata() {
+	const action = pos[1];
+	try {
+		if ('save-snippet' === action) {
+			const id = pos[2];
+			if (!id) cliError('MISSING_ID', 'Usage: snips strata save-snippet <id>', 2);
+			const db = loadDb();
+			let snippet;
+			try {
+				snippet = db.getSnippet(id);
+			} finally {
+				db.db.close();
+			}
+			if (!snippet) cliError('NOT_FOUND', 'Snippet not found: ' + id, 1);
+			const data = await strataRequest('/notes', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					content: `# ${snippet.name}\n\n${snippet.content}`,
+					tags: Array.from(new Set(['snips', `abbr:${snippet.abbreviation}`].concat(snippet.tags || [])))
+				})
+			});
+			return output(isJson ? { ok: true, note: data.note } : `Saved snippet to Strata note ${data.note.id}.`);
+		}
+		if ('import-note' === action) {
+			const id = pos[2];
+			if (!id) cliError('MISSING_ID', 'Usage: snips strata import-note <note-id> [--dry-run|--confirm]', 2);
+			const data = await strataRequest('/notes/' + encodeURIComponent(id));
+			const snippet = noteToSnippet(data.note);
+			if (isDryRun) return output({ ok: true, dryRun: true, snippet });
+			if (!isConfirm) cliError('CONFIRM_REQUIRED', 'Import requires --confirm. Use --dry-run to preview.', 2);
+			const db = loadDb();
+			try {
+				if (db.getSnippetByAbbreviation(snippet.abbreviation)) {
+					cliError('ABBREVIATION_EXISTS', `Abbreviation ${snippet.abbreviation} already exists.`, 1);
+				}
+				const saved = db.saveSnippet(snippet);
+				return output(isJson ? { ok: true, snippet: saved } : `Imported Strata note as ${saved.abbreviation}.`);
+			} finally {
+				db.db.close();
+			}
+		}
+		if ('search-candidates' === action) {
+			const query = pos.slice(2).join(' ').trim();
+			if (!query) cliError('MISSING_QUERY', 'Usage: snips strata search-candidates <query>', 2);
+			const data = await strataRequest('/notes?query=' + encodeURIComponent(query));
+			const notes = (data.notes || []).map((note) => ({
+				id: note.id,
+				preview: String(note.content || '').slice(0, 160),
+				tags: note.tags || []
+			}));
+			return output(
+				isJson
+					? { ok: true, count: notes.length, notes }
+					: notes.map((note) => `${note.id}  ${note.preview.replace(/\s+/g, ' ')}`).join('\n')
+			);
+		}
+		cliError('UNKNOWN_STRATA_COMMAND', 'Use save-snippet, import-note, or search-candidates.', 2);
+	} catch (error) {
+		cliError('STRATA_ERROR', error && error.message ? error.message : String(error), 1);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -410,21 +519,29 @@ function cmdExport() {
 		const data = {
 			version: 1,
 			exportedAt: Date.now(),
-			appVersion: '0.2.0',
+			appVersion: APP_VERSION,
 			groups: groups,
 			snippets: snippets
 		};
 
 		const json = JSON.stringify(data, null, 2);
 		if (outPath) {
-			fs.writeFileSync(outPath, json, 'utf8');
+			const resolvedOut = path.resolve(outPath);
+			const tempOut = resolvedOut + '.tmp-' + process.pid;
+			fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+			try {
+				fs.writeFileSync(tempOut, json, { encoding: 'utf8', mode: 0o600 });
+				fs.renameSync(tempOut, resolvedOut);
+			} finally {
+				if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
+			}
 			output(
 				isJson
 					? { ok: true, path: outPath, count: snippets.length }
 					: 'Exported ' + snippets.length + ' snippets to ' + outPath
 			);
 		} else {
-			output(json);
+			output(data);
 		}
 	} finally {
 		db.db.close();
@@ -447,8 +564,11 @@ function cmdImport() {
 		cliError('PARSE_ERROR', 'Could not parse JSON: ' + e.message, 1);
 	}
 
-	const snippets = data.snippets || [];
-	const groups = data.groups || [];
+	if (!data || 1 !== data.version || !Array.isArray(data.snippets) || !Array.isArray(data.groups)) {
+		cliError('UNSUPPORTED_BACKUP', 'Expected a Snips version 1 backup with groups and snippets arrays.', 1);
+	}
+	const snippets = data.snippets;
+	const groups = data.groups;
 
 	if (isDryRun) {
 		output({
@@ -544,7 +664,7 @@ function cmdHealth() {
 	const result = {
 		ok: true,
 		db: { path: dbPath, exists: dbExists },
-		version: '0.2.0'
+		version: APP_VERSION
 	};
 
 	if (dbExists) {
@@ -630,9 +750,11 @@ function main() {
 			return cmdShow();
 		case 'doctor':
 			return cmdDoctor();
+		case 'strata':
+			return cmdStrata();
 		default:
 			cliError('UNKNOWN_COMMAND', 'Unknown command: ' + command + '. Use snips help for usage.', 2);
 	}
 }
 
-main();
+Promise.resolve(main()).catch((error) => cliError('UNEXPECTED_ERROR', error.message || String(error), 1));

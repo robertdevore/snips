@@ -169,6 +169,19 @@ snips doctor --json
 
 `doctor` checks the WPM range, palette hotkey, and whether the library is empty. It does not test macOS Accessibility or Input Monitoring permissions; use the Snips Status panel for helper permissions.
 
+## Strata bridge
+
+With Strata running locally, Snips can deliberately exchange selected content through its HTTP API:
+
+```bash
+snips strata save-snippet <snippet-id>
+snips strata search-candidates "query"
+snips strata import-note <note-id> --dry-run
+snips strata import-note <note-id> --confirm
+```
+
+The default base URL is `http://127.0.0.1:3939`. Set `STRATA_URL` or pass `--strata-url`; set `STRATA_API_TOKEN` when Strata authentication is enabled. Imports require a preview or explicit confirmation.
+
 ## Isolated or test database
 
 Set `SNIPS_DATA_DIR` to point the CLI at another data directory. This is useful for tests and safe previews:
@@ -217,7 +230,8 @@ For destructive or bulk changes, always run the corresponding `--dry-run` comman
 | `health`             | Show database health and counts                | No                               | —                              |
 | `show`               | Show settings                                  | No                               | —                              |
 | `doctor`             | Check common configuration issues              | No                               | —                              |
+| `strata`             | Exchange selected content with local Strata    | Import/save only                 | Import requires `--confirm`    |
 
 ## Privacy and safety
 
-The CLI reads and writes the local SQLite database. It does not send snippet content to a remote service. Treat exported JSON files as sensitive if they contain private templates, clipboard macros, customer data, or credentials.
+The CLI normally reads and writes only the local SQLite database. The `strata` command is the sole opt-in bridge and sends only the selected snippet or query to the configured Strata URL. Treat exported JSON files as sensitive if they contain private templates, clipboard macros, customer data, or credentials.
