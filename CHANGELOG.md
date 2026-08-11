@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 - 2026-08-11
+
+### Added
+
+- Added a guarded local Strata bridge for saving snippets, finding candidate notes, and previewing or confirming note imports.
+- Added large-library database coverage and collision-resistant snippet/group identifiers.
+
+### Changed
+
+- Replaced per-snippet tag queries with bounded batch loading for faster library and search rendering.
+- Made JSON backup writes atomic and reject unsupported backup shapes before importing.
+- Shortened the README around install, first use, CLI, permissions, and development.
+
+### Fixed
+
+- Removed stale hard-coded `0.2.0` version strings from exports, health output, the UI, and helper metadata.
+- Removed executable inline script permission and safely rendered user-controlled names, abbreviations, groups, and statistics.
+
 ## 0.3.0 - 2026-08-08
 
 ### Added

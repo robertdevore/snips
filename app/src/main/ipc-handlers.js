@@ -144,7 +144,7 @@ function registerHandlers(deps) {
 		return {
 			version: 1,
 			exportedAt: Date.now(),
-			appVersion: '0.2.0',
+			appVersion: app.getVersion(),
 			groups,
 			snippets
 		};
