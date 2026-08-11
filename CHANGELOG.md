@@ -11,6 +11,7 @@
 
 - Replaced per-snippet tag queries with bounded batch loading for faster library and search rendering.
 - Made JSON backup writes atomic and reject unsupported backup shapes before importing.
+- Updated the SQLite binding so the Node CLI and Electron app can share one ABI-stable packaged binary.
 - Shortened the README around install, first use, CLI, permissions, and development.
 
 ### Fixed

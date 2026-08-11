@@ -51,7 +51,7 @@ The bridge uses `http://127.0.0.1:3939` by default. Override it with `STRATA_URL
 
 ## Develop
 
-Requirements: macOS, Node.js, npm, and Xcode Command Line Tools.
+Requirements: macOS, Node.js 22+, npm, and Xcode Command Line Tools.
 
 ```bash
 npm install
