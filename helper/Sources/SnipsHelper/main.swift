@@ -706,6 +706,11 @@ final class SnipsHelper {
 			return
 		}
 		if let app = NSRunningApplication(processIdentifier: pid) {
+			// Typed expansions already have focus. Only wait when restoring it
+			// after a palette or fill-in window has activated another app.
+			if app.isActive {
+				return
+			}
 			_ = app.activate(options: [.activateIgnoringOtherApps])
 			usleep(420000)
 			return
