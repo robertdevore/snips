@@ -1,6 +1,6 @@
 {
 	"name": "snips-app",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Snips macOS snippet expansion app",
 	"author": "Snips",
 	"private": true,
@@ -24,7 +24,8 @@
 			"src/**/*",
 			"package.json",
 			"build/icon.icns",
-			"build/icon.png"
+			"build/icon.png",
+			"cli/**/*"
 		],
 		"directories": {
 			"output": "dist"
@@ -43,14 +44,18 @@
 						"arm64"
 					]
 				}
-			]
+			],
+			"hardenedRuntime": true,
+			"entitlements": "build-support/entitlements.mac.plist",
+			"entitlementsInherit": "build-support/entitlements.mac.plist"
 		},
 		"extraResources": [
 			{
 				"from": "../helper/.build",
 				"to": "helper-build",
 				"filter": [
-					"**/release/SnipsHelper"
+					"**/release/SnipsHelper",
+					"**/release/SnipsHelper.app/**/*"
 				]
 			}
 		]

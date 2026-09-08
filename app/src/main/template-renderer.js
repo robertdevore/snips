@@ -11,33 +11,21 @@ function extractFillFields(template) {
 	return fields;
 }
 
-function renderTemplate(template, context) {
-	let text = template;
-	text = text.replace(/\[\[date:([^\]]+)\]\]/g, (_, format) => {
-		const date = new Date();
-		if ('iso' === format.toLowerCase()) {
-			return date.toISOString();
+function renderTemplate(template, context = {}) {
+	return template.replace(
+		/\[\[(date:([^\]]+)|clipboard|fill:([^\]|]+)(?:\|([^\]]*))?|cursor)\]\]/g,
+		(_match, token, format, label, defaultValue) => {
+			if (token === 'cursor') return '';
+			if (token === 'clipboard') return context.clipboard || '';
+			if (format) {
+				const date = new Date();
+				return format.toLowerCase() === 'iso' ? date.toISOString() : date.toLocaleDateString();
+			}
+			return Object.hasOwn(context.fillValues || {}, label.trim())
+				? context.fillValues[label.trim()]
+				: defaultValue || '';
 		}
-		if ('short' === format.toLowerCase()) {
-			return date.toLocaleDateString();
-		}
-		return new Intl.DateTimeFormat(undefined, {
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit'
-		}).format(date);
-	});
-	text = text.replace(/\[\[clipboard\]\]/g, context.clipboard || '');
-	text = text.replace(/\[\[fill:([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_, label, defaultValue) => {
-		const key = label.trim();
-		if (Object.prototype.hasOwnProperty.call(context.fillValues || {}, key)) {
-			return context.fillValues[key];
-		}
-		return (defaultValue || '').trim();
-	});
-	return text;
+	);
 }
 
 module.exports = {

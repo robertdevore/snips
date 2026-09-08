@@ -35,6 +35,16 @@ const { contextBridge, ipcRenderer } = require('electron');
  */
 
 contextBridge.exposeInMainWorld('snipsApi', {
+	installCli: () => ipcRenderer.invoke('cli:install'),
+	upgradeHelper: () => ipcRenderer.invoke('helper:upgrade'),
+	batch: (operations) => ipcRenderer.invoke('snippets:batch', operations),
+	purgeSnippet: (id) => ipcRenderer.invoke('snippets:purge', id),
+	listTrash: () => ipcRenderer.invoke('snippets:trash'),
+	restoreSnippet: (id) => ipcRenderer.invoke('snippets:restore', id),
+	historyDetail: (id, historyId) => ipcRenderer.invoke('snippets:history-detail', id, historyId),
+	history: (id) => ipcRenderer.invoke('snippets:history', id),
+	revert: (payload) => ipcRenderer.invoke('snippets:revert', payload),
+	onDataChanged: (handler) => ipcRenderer.on('data:changed', () => handler()),
 	listGroups: () => ipcRenderer.invoke('groups:list'),
 	saveGroup: (group) => ipcRenderer.invoke('groups:save', group),
 	deleteGroup: (groupId) => ipcRenderer.invoke('groups:delete', groupId),

@@ -4,6 +4,8 @@ const net = require('net');
 const { spawn, execFile, execFileSync } = require('child_process');
 const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage } = require('electron');
 const { SnipsDb } = require('./db');
+const { helperToken } = require('./helper-auth');
+const { createHash } = require('crypto');
 const { HelperBridge } = require('./helper-bridge');
 const { registerHandlers } = require('./ipc-handlers');
 
@@ -15,7 +17,8 @@ let db;
 let helperBridge;
 let fillWindowReady = false;
 let pendingFillPayload = null;
-let helperStatus = {
+let activeFillRequest = null;
+const helperStatus = {
 	secureInput: false,
 	accessibilityEnabled: false,
 	listenEventAccess: false,
@@ -24,6 +27,11 @@ let helperStatus = {
 	helperExecutable: '',
 	running: false
 };
+
+function broadcast(channel, ...args) {
+	if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed())
+		mainWindow.webContents.send(channel, ...args);
+}
 
 function createMainWindow() {
 	mainWindow = new BrowserWindow({
@@ -114,10 +122,22 @@ function createFillWindow() {
 			showFillWindow(pendingFillPayload);
 		}
 	});
+	windowRef.on('close', () => {
+		if (activeFillRequest) {
+			helperBridge
+				.sendCommand({
+					type: 'fill_response',
+					payload: { requestId: activeFillRequest, values: {}, cancelled: true }
+				})
+				.catch(() => {});
+			activeFillRequest = null;
+		}
+	});
 	windowRef.loadFile(path.join(__dirname, '../renderer/fill.html'));
 }
 
 function showFillWindow(payload) {
+	activeFillRequest = payload.requestId;
 	pendingFillPayload = payload;
 	if (!fillWindow || fillWindow.isDestroyed()) {
 		createFillWindow();
@@ -203,6 +223,7 @@ function setupTray() {
 }
 
 function showPalette() {
+	if (!paletteWindow || paletteWindow.isDestroyed()) createPaletteWindow();
 	paletteWindow.center();
 	paletteWindow.show();
 	paletteWindow.focus();
@@ -214,6 +235,7 @@ function registerGlobalHotkey() {
 	const settings = db.getSettings();
 	const shortcut = settings.globalHotkey || 'CommandOrControl+Shift+Space';
 	const used = {};
+	helperStatus.hotkeyFailures = [];
 
 	function reg(key, handler) {
 		const value = (key || '').trim();
@@ -221,9 +243,9 @@ function registerGlobalHotkey() {
 		if (used[value]) return;
 		used[value] = true;
 		try {
-			globalShortcut.register(value, handler);
+			if (!globalShortcut.register(value, handler)) helperStatus.hotkeyFailures.push(value + ': already in use');
 		} catch (_error) {
-			// Ignore invalid shortcuts
+			helperStatus.hotkeyFailures.push(value + ': invalid shortcut');
 		}
 	}
 
@@ -237,17 +259,17 @@ function registerGlobalHotkey() {
 
 	reg(settings.hotkeyNewSnippet, () => {
 		showMainWindow();
-		mainWindow.webContents.send('nav:show', { view: 'libraryView', action: 'newSnippet' });
+		broadcast('nav:show', { view: 'libraryView', action: 'newSnippet' });
 	});
 
 	reg(settings.hotkeyOpenSettings, () => {
 		showMainWindow();
-		mainWindow.webContents.send('nav:show', { view: 'settingsView' });
+		broadcast('nav:show', { view: 'settingsView' });
 	});
 
 	reg(settings.hotkeyOpenStats, () => {
 		showMainWindow();
-		mainWindow.webContents.send('nav:show', { view: 'statsView' });
+		broadcast('nav:show', { view: 'statsView' });
 	});
 }
 
@@ -261,21 +283,21 @@ async function syncHelperConfig() {
 	const snippets = db.getEnabledSnippetsForHelper();
 	const response = await helperBridge.sendConfig({ snippets, settings });
 	helperStatus.running = true;
-	helperStatus.accessibilityEnabled = !!response.accessibilityEnabled;
-	helperStatus.listenEventAccess = !!response.listenEventAccess;
-	helperStatus.postEventAccess = !!response.postEventAccess;
-	helperStatus.eventTapActive = !!response.eventTapActive;
+	helperStatus.lastError = null;
+	for (const field of ['accessibilityEnabled', 'listenEventAccess', 'postEventAccess', 'eventTapActive']) {
+		if (Object.hasOwn(response, field)) helperStatus[field] = !!response[field];
+	}
 	helperStatus.helperExecutable = response.helperExecutable || helperStatus.helperExecutable || '';
 	if (Object.prototype.hasOwnProperty.call(response, 'secureInput')) {
 		helperStatus.secureInput = !!response.secureInput;
 	}
 	refreshTray();
 	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.webContents.send('helper:status', helperStatus);
+		broadcast('helper:status', helperStatus);
 	}
 }
 
-function findHelperBinaryPath() {
+function findHelperBinaryPath(upgrade = false) {
 	const packagedArm = path.join(
 		process.resourcesPath || '',
 		'helper-build',
@@ -315,14 +337,33 @@ function findHelperBinaryPath() {
 			}
 		}
 		if (source) {
+			const sourceBundle = path.join(path.dirname(source), 'SnipsHelper.app');
+			const hasSourceBundle = fs.existsSync(sourceBundle);
 			fs.mkdirSync(userMacOsDir, { recursive: true });
 			fs.mkdirSync(userResourcesDir, { recursive: true });
 			// Important: if we overwrite the helper binary after the user grants
 			// Accessibility/Input Monitoring, macOS can treat it like a new binary and
 			// silently drop the grant. Only copy on first install.
-			const shouldCopy = !fs.existsSync(userHelperPath);
-			if (shouldCopy) {
-				fs.copyFileSync(source, userHelperPath);
+			const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+			helperStatus.upgradeRequired =
+				fs.existsSync(userHelperPath) &&
+				hash(hasSourceBundle ? path.join(sourceBundle, 'Contents/MacOS/SnipsHelper') : source) !==
+					hash(userHelperPath);
+			helperStatus.packagedVersion = app.getVersion();
+			helperStatus.installedVersion = fs.existsSync(userInfoPlistPath)
+				? fs
+						.readFileSync(userInfoPlistPath, 'utf8')
+						.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)/)?.[1] || 'unknown'
+				: 'missing';
+			const shouldCopy = !fs.existsSync(userHelperPath) || (upgrade && helperStatus.upgradeRequired);
+			if (shouldCopy && hasSourceBundle) {
+				fs.cpSync(sourceBundle, userAppPath, { recursive: true, force: true });
+				helperStatus.upgradeRequired = false;
+			}
+			if (shouldCopy && !hasSourceBundle) {
+				fs.copyFileSync(source, userHelperPath + '.new');
+				fs.renameSync(userHelperPath + '.new', userHelperPath);
+				helperStatus.upgradeRequired = false;
 				try {
 					fs.chmodSync(userHelperPath, 0o755);
 				} catch (_error) {
@@ -330,7 +371,7 @@ function findHelperBinaryPath() {
 				}
 				modifiedUserHelperApp = true;
 			}
-			if (!fs.existsSync(userInfoPlistPath)) {
+			if (!hasSourceBundle && (shouldCopy || !fs.existsSync(userInfoPlistPath))) {
 				const helperVersion = app.getVersion();
 				const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>CFBundleDevelopmentRegion</key>\n\t<string>en</string>\n\t<key>CFBundleExecutable</key>\n\t<string>SnipsHelper</string>\n\t<key>CFBundleIdentifier</key>\n\t<string>com.snips.helper</string>\n\t<key>CFBundleInfoDictionaryVersion</key>\n\t<string>6.0</string>\n\t<key>CFBundleName</key>\n\t<string>SnipsHelper</string>\n\t<key>CFBundlePackageType</key>\n\t<string>APPL</string>\n\t<key>CFBundleShortVersionString</key>\n\t<string>${helperVersion}</string>\n\t<key>CFBundleVersion</key>\n\t<string>${helperVersion}</string>\n\t<key>LSUIElement</key>\n\t<true/>\n</dict>\n</plist>\n`;
 				fs.mkdirSync(path.dirname(userInfoPlistPath), { recursive: true });
@@ -371,7 +412,7 @@ function get_helper_connection_settings() {
 	try {
 		const settings = db ? db.getSettings() : null;
 		return {
-			host: settings && settings.helperHost ? settings.helperHost : '127.0.0.1',
+			host: '127.0.0.1',
 			port: Number(settings && settings.helperPort ? settings.helperPort : 50555)
 		};
 	} catch (_error) {
@@ -430,6 +471,7 @@ async function ensureHelperRunning() {
 		}
 		const child = spawn(helperBinary, [], {
 			detached: true,
+			env: { ...process.env, SNIPS_TOKEN_PATH: path.join(app.getPath('userData'), 'helper-token') },
 			stdio: 'ignore'
 		});
 		child.unref();
@@ -439,11 +481,12 @@ async function ensureHelperRunning() {
 	}
 }
 
-async function restartHelper() {
+async function restartHelper(upgrade = false) {
 	await new Promise((resolve) => {
-		execFile('/usr/bin/pkill', ['-f', 'SnipsHelper'], () => resolve(true));
+		execFile('/usr/bin/pkill', ['-u', String(process.getuid()), '-x', 'SnipsHelper'], () => resolve(true));
 	});
 	await new Promise((resolve) => setTimeout(resolve, 250));
+	if (upgrade) findHelperBinaryPath(true);
 	const started = await ensureHelperRunning();
 	if (!started) {
 		return { started: false, reachable: false };
@@ -465,15 +508,18 @@ async function syncHelperConfigWithRetry() {
 			return;
 		} catch (_secondError) {
 			helperStatus.running = false;
+			helperStatus.lastError = _secondError.message;
 			refreshTray();
 			if (mainWindow && !mainWindow.isDestroyed()) {
-				mainWindow.webContents.send('helper:status', helperStatus);
+				broadcast('helper:status', helperStatus);
 			}
 		}
 	}
 }
 
 function installLaunchAgentIfPossible() {
+	const xml = (value) =>
+		value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 	const helperBinary = findHelperBinaryPath();
 	if (!helperBinary) {
 		return;
@@ -483,80 +529,123 @@ function installLaunchAgentIfPossible() {
 		fs.mkdirSync(launchAgentsDir, { recursive: true });
 	}
 	const plistPath = path.join(launchAgentsDir, 'com.snips.helper.plist');
-	const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>Label</key>\n\t<string>com.snips.helper</string>\n\t<key>ProgramArguments</key>\n\t<array>\n\t\t<string>${helperBinary}</string>\n\t</array>\n\t<key>RunAtLoad</key>\n\t<true/>\n\t<key>KeepAlive</key>\n\t<true/>\n</dict>\n</plist>\n`;
+	const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>Label</key>\n\t<string>com.snips.helper</string>\n\t<key>ProgramArguments</key>\n\t<array>\n\t\t<string>${xml(helperBinary)}</string>\n\t</array>\n\t<key>RunAtLoad</key>\n\t<true/>\n\t<key>KeepAlive</key>\n\t<true/>\n</dict>\n</plist>\n`;
 	fs.writeFileSync(plistPath, plist, 'utf8');
 }
 
-app.whenReady().then(async () => {
-	// Hide the Dock icon so Snips runs as a menu bar agent (like CleanShot X).
-	// The tray icon is the only persistent UI; windows open on demand.
-	if (process.platform === 'darwin' && app.dock) {
-		app.dock.hide();
-	}
+app.on('web-contents-created', (_event, contents) => {
+	contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+	contents.on('will-navigate', (event) => event.preventDefault());
+	contents.session.setPermissionRequestHandler((_contents, permission, callback) =>
+		callback(permission === 'clipboard-sanitized-write')
+	);
+});
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on('second-instance', () => showMainWindow());
+app.whenReady()
+	.then(async () => {
+		// Hide the Dock icon so Snips runs as a menu bar agent (like CleanShot X).
+		// The tray icon is the only persistent UI; windows open on demand.
+		if (process.platform === 'darwin' && app.dock) {
+			app.dock.hide();
+		}
 
-	const dataDir = path.join(app.getPath('userData'), 'data');
+		const dataDir = path.join(app.getPath('userData'), 'data');
 
-	// Migrate database from legacy dev-mode location (snips-app) to production
-	// location (Snips) if the production DB doesn't exist yet.
-	const devDataDir = path.join(app.getPath('appData'), 'snips-app', 'data');
-	const prodDbPath = path.join(dataDir, 'snips.db');
-	const devDbPath = path.join(devDataDir, 'snips.db');
-	if (!fs.existsSync(prodDbPath) && fs.existsSync(devDbPath)) {
-		fs.mkdirSync(dataDir, { recursive: true });
-		fs.copyFileSync(devDbPath, prodDbPath);
-	}
-
-	db = new SnipsDb(dataDir);
-	helperBridge = new HelperBridge({
-		onEvent: (event) => {
-			if ('expansion_event' === event.type) {
-				db.recordEvent(event.payload);
-				mainWindow.webContents.send('stats:updated');
-			}
-			if ('status' === event.type) {
-				helperStatus = { ...helperStatus, ...event.payload, running: true };
-				refreshTray();
-				mainWindow.webContents.send('helper:status', helperStatus);
-			}
-			if ('fill_request' === event.type) {
-				showFillWindow(event.payload);
+		// Migrate database from legacy dev-mode location (snips-app) to production
+		// location (Snips) if the production DB doesn't exist yet.
+		const devDataDir = path.join(app.getPath('appData'), 'snips-app', 'data');
+		const prodDbPath = path.join(dataDir, 'snips.db');
+		const devDbPath = path.join(devDataDir, 'snips.db');
+		if (!fs.existsSync(prodDbPath) && fs.existsSync(devDbPath)) {
+			fs.mkdirSync(dataDir, { recursive: true });
+			const legacy = new (require('better-sqlite3'))(devDbPath, { readonly: true });
+			try {
+				await legacy.backup(prodDbPath);
+			} finally {
+				legacy.close();
 			}
 		}
+
+		db = new SnipsDb(dataDir);
+		helperBridge = new HelperBridge({
+			token: helperToken(app.getPath('userData')),
+			onEvent: (event) => {
+				if ('expansion_event' === event.type) {
+					db.recordEvent(event.payload);
+					broadcast('stats:updated');
+				}
+				if ('status' === event.type) {
+					Object.assign(helperStatus, event.payload, { running: true });
+					refreshTray();
+					broadcast('helper:status', helperStatus);
+				}
+				if ('fill_request' === event.type) {
+					showFillWindow(event.payload);
+				}
+			}
+		});
+		helperBridge.startEventServer();
+		createMainWindow();
+		createPaletteWindow();
+		createFillWindow();
+
+		registerHandlers({
+			db,
+			helperBridge,
+			helperStatus,
+			syncHelperConfig,
+			syncHelperConfigWithRetry,
+			registerGlobalHotkey,
+			refreshTray,
+			showPalette,
+			showMainWindow,
+			findHelperBinaryPath,
+			restartHelper,
+			mainWindow,
+			broadcast,
+			fillWindow,
+			getFillWindow: () => fillWindow
+		});
+
+		setupTray();
+		registerGlobalHotkey();
+		installLaunchAgentIfPossible();
+		await ensureHelperRunning();
+
+		await syncHelperConfigWithRetry();
+		let dataVersion = db.db.pragma('data_version', { simple: true });
+		const refreshTimer = setInterval(() => {
+			const next = db.db.pragma('data_version', { simple: true });
+			if (next !== dataVersion) {
+				dataVersion = next;
+				broadcast('data:changed');
+				syncHelperConfigWithRetry();
+			}
+		}, 1000);
+		refreshTimer.unref();
+		const statusTimer = setInterval(() => {
+			fs.writeFileSync(
+				path.join(app.getPath('userData'), 'runtime-status.json'),
+				JSON.stringify({ ...helperStatus, timestamp: Date.now() }),
+				{ mode: 0o600 }
+			);
+		}, 3000);
+		statusTimer.unref();
+	})
+	.catch((error) => {
+		require('electron').dialog.showErrorBox(
+			'Snips could not start',
+			error.message + '\nYour database was not reset. See docs/RECOVERY.md.'
+		);
+		app.quit();
 	});
-	helperBridge.startEventServer();
-	createMainWindow();
-	createPaletteWindow();
-	createFillWindow();
-
-	registerHandlers({
-		db,
-		helperBridge,
-		helperStatus,
-		syncHelperConfig,
-		syncHelperConfigWithRetry,
-		registerGlobalHotkey,
-		refreshTray,
-		showPalette,
-		showMainWindow,
-		findHelperBinaryPath,
-		restartHelper,
-		mainWindow,
-		fillWindow,
-		getFillWindow: () => fillWindow
-	});
-
-	setupTray();
-	registerGlobalHotkey();
-	installLaunchAgentIfPossible();
-	await ensureHelperRunning();
-
-	await syncHelperConfigWithRetry();
-});
 
 app.on('activate', () => {
 	showMainWindow();
 });
 
 app.on('will-quit', () => {
+	helperBridge?.server?.close();
 	globalShortcut.unregisterAll();
 });

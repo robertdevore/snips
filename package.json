@@ -1,7 +1,7 @@
 {
 	"name": "snips",
 	"private": true,
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Snips macOS snippet expander",
 	"engines": {
 		"node": ">=22"
@@ -20,7 +20,12 @@
 		"cli": "node app/cli/index.js",
 		"lint": "npx eslint app/src/ app/cli/",
 		"format": "npx prettier --write app/src/ app/cli/",
-		"format:check": "npx prettier --check app/src/ app/cli/"
+		"format:check": "npx prettier --check app/src/ app/cli/",
+		"verify": "npm run lint && npm run format:check && npm test --workspace app && npm run helper:build && npm run helper:test",
+		"helper:test": "zsh scripts/helper-test.sh",
+		"test:e2e": "electron app/tests/electron/renderer-smoke.cjs",
+		"benchmark": "node scripts/performance/library-benchmark.cjs && python3 scripts/performance/focus-benchmark.py 31be5c8",
+		"package:verify": "node scripts/package-verify.cjs"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.4",

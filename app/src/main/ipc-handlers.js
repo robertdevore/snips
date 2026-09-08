@@ -44,17 +44,36 @@ function registerHandlers(deps) {
 		getFillWindow
 	} = deps;
 
+	function handle(channel, handler) {
+		ipcMain.handle(channel, (event, ...args) => {
+			const { pathToFileURL } = require('url');
+			const path = require('path');
+			const pages =
+				channel === 'snippets:list' || channel === 'palette:insert'
+					? ['index.html', 'palette.html']
+					: ['index.html'];
+			if (
+				event.senderFrame !== event.sender.mainFrame ||
+				!pages.some(
+					(page) => event.senderFrame.url === pathToFileURL(path.join(__dirname, '../renderer', page)).href
+				)
+			)
+				throw new Error('UNTRUSTED_SENDER');
+			return handler(event, ...args);
+		});
+	}
+
 	// --- Groups ---
 
-	ipcMain.handle('groups:list', () => db.listGroups());
+	handle('groups:list', () => db.listGroups());
 
-	ipcMain.handle('groups:save', async (_event, group) => {
+	handle('groups:save', async (_event, group) => {
 		const saved = db.saveGroup(group);
 		await syncHelperConfigWithRetry();
 		return saved;
 	});
 
-	ipcMain.handle('groups:delete', async (_event, groupId) => {
+	handle('groups:delete', async (_event, groupId) => {
 		db.deleteGroup(groupId);
 		await syncHelperConfig().catch(() => {});
 		return { ok: true };
@@ -62,13 +81,13 @@ function registerHandlers(deps) {
 
 	// --- Snippets ---
 
-	ipcMain.handle('snippets:counts', () => db.getSnippetCounts());
+	handle('snippets:counts', () => db.getSnippetCounts());
 
-	ipcMain.handle('snippets:list', (_event, args) => db.listSnippets(args || {}));
+	handle('snippets:list', (_event, args) => db.listSnippets(args || {}));
 
-	ipcMain.handle('snippets:get', (_event, id) => db.getSnippet(id));
+	handle('snippets:get', (_event, id) => db.getSnippet(id));
 
-	ipcMain.handle('snippets:save', async (_event, snippet) => {
+	handle('snippets:save', async (_event, snippet) => {
 		const validation = validateSnippet(snippet);
 		if (!validation.valid) {
 			return { ok: false, errors: validation.errors };
@@ -91,18 +110,35 @@ function registerHandlers(deps) {
 			}
 		}
 
-		const saved = db.saveSnippet(snippet);
+		let saved;
+		try {
+			saved = db.saveSnippet(snippet);
+		} catch (error) {
+			return {
+				ok: false,
+				error: { code: error.code || 'SAVE_FAILED' },
+				errors: [
+					{
+						field: 'snippet',
+						message:
+							error.code === 'REVISION_CONFLICT'
+								? 'Changed outside this editor. Copy your draft, reload, and retry.'
+								: error.message
+					}
+				]
+			};
+		}
 		await syncHelperConfigWithRetry();
 		return saved;
 	});
 
-	ipcMain.handle('snippets:delete', async (_event, id) => {
+	handle('snippets:delete', async (_event, id) => {
 		db.deleteSnippet(id);
 		await syncHelperConfigWithRetry();
 		return { ok: true };
 	});
 
-	ipcMain.handle('snippets:test-render', async (_event, snippet) => {
+	handle('snippets:test-render', async (_event, snippet) => {
 		const fillValues = {};
 		const fields = extractFillFields(snippet.content || '');
 		for (const field of fields) {
@@ -117,9 +153,9 @@ function registerHandlers(deps) {
 
 	// --- Settings ---
 
-	ipcMain.handle('settings:get', () => db.getSettings());
+	handle('settings:get', () => db.getSettings());
 
-	ipcMain.handle('settings:save', async (_event, settings) => {
+	handle('settings:save', async (_event, settings) => {
 		const saved = db.saveSettings(settings);
 		registerGlobalHotkey();
 		await syncHelperConfigWithRetry();
@@ -129,7 +165,7 @@ function registerHandlers(deps) {
 
 	// --- Import ---
 
-	ipcMain.handle('import:csv', async (_event, payload) => {
+	handle('import:csv', async (_event, payload) => {
 		try {
 			return await importCsv(db, payload, syncHelperConfigWithRetry);
 		} catch (error) {
@@ -138,7 +174,7 @@ function registerHandlers(deps) {
 	});
 	// --- Export ---
 
-	ipcMain.handle('export:json', async () => {
+	handle('export:json', async () => {
 		const groups = db.listGroups();
 		const snippets = db.listSnippets();
 		return {
@@ -151,40 +187,75 @@ function registerHandlers(deps) {
 	});
 	// --- Stats ---
 
-	ipcMain.handle('stats:get', (_event, range) => db.getStats(range));
+	handle('stats:get', (_event, range) => db.getStats(range));
 
-	ipcMain.handle('stats:reset', (_event, snippetId) => {
+	handle('stats:reset', (_event, snippetId) => {
 		db.resetStats(snippetId || null);
 		return { ok: true };
 	});
 
-	ipcMain.handle('stats:export', (_event, range) => {
+	handle('stats:export', (_event, range) => {
 		const stats = db.getStats(range || {});
 		return { ok: true, data: stats };
 	});
 
 	// --- Window ---
 
-	ipcMain.handle('window:show', () => {
+	handle('window:show', () => {
 		const { showMainWindow } = deps;
 		if (typeof showMainWindow === 'function') showMainWindow();
 		return { ok: true };
 	});
 
-	ipcMain.handle('palette:open', () => {
+	handle('palette:open', () => {
 		showPalette();
 		return { ok: true };
 	});
 
-	ipcMain.handle('palette:insert', async (_event, snippetId) => {
+	handle('palette:insert', async (_event, snippetId) => {
 		return helperBridge.insertById(snippetId).catch(() => ({ ok: false, message: 'Helper unavailable' }));
 	});
 
 	// --- Helper ---
 
-	ipcMain.handle('helper:status', () => helperStatus);
+	handle('helper:status', () => helperStatus);
+	handle('cli:install', () =>
+		require('./cli-install').installCli({
+			home: app.getPath('home'),
+			executable: process.execPath,
+			entry: require('path').join(app.getAppPath(), 'cli/index.js')
+		})
+	);
+	handle('helper:upgrade', async () => {
+		const result = await restartHelper(true);
+		await syncHelperConfigWithRetry();
+		return {
+			...result,
+			message:
+				'Helper upgraded. If expansion is unavailable, re-enable SnipsHelper.app in Accessibility and Input Monitoring.'
+		};
+	});
+	handle('snippets:batch', async (_event, operations) => {
+		const result = require('./operations').execute(db, operations, { source: 'gui' });
+		await syncHelperConfigWithRetry();
+		return result;
+	});
+	handle('snippets:purge', (_event, id) => db.purgeSnippet(id));
+	handle('snippets:trash', () => db.listSnippets({ trash: true, limit: 500 }));
+	handle('snippets:restore', async (_event, id) => {
+		const result = db.changeTrash(id, false);
+		await syncHelperConfigWithRetry();
+		return result;
+	});
+	handle('snippets:history-detail', (_event, id, historyId) => db.historyEntry(id, historyId));
+	handle('snippets:history', (_event, id) => db.history(id));
+	handle('snippets:revert', async (_event, payload) => {
+		const result = require('./operations').execute(db, [{ type: 'revert', ...payload }], { source: 'gui' });
+		await syncHelperConfigWithRetry();
+		return result;
+	});
 
-	ipcMain.handle('helper:restart', async () => {
+	handle('helper:restart', async () => {
 		const helperBinary = findHelperBinaryPath();
 		if (!helperBinary) {
 			return {
@@ -221,13 +292,13 @@ function registerHandlers(deps) {
 		return { ok: true, started: true, reachable: true, helperBinary, status: helperStatus };
 	});
 
-	ipcMain.handle('helper:open-a11y', async () => {
+	handle('helper:open-a11y', async () => {
 		const { shell } = require('electron');
 		await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
 		return { ok: true };
 	});
 
-	ipcMain.handle('helper:reveal-binary', async () => {
+	handle('helper:reveal-binary', async () => {
 		const { shell } = require('electron');
 		const helperBinary = findHelperBinaryPath();
 		if (!helperBinary) {
@@ -237,7 +308,7 @@ function registerHandlers(deps) {
 		return { ok: true, helperBinary };
 	});
 
-	ipcMain.handle('helper:request-accessibility', async () => {
+	handle('helper:request-accessibility', async () => {
 		try {
 			const response = await helperBridge.sendCommand({ type: 'request_accessibility', payload: {} });
 			helperStatus.running = true;
@@ -251,7 +322,7 @@ function registerHandlers(deps) {
 		}
 	});
 
-	ipcMain.handle('helper:request-input-monitoring', async () => {
+	handle('helper:request-input-monitoring', async () => {
 		try {
 			const response = await helperBridge.sendCommand({ type: 'request_input_monitoring', payload: {} });
 			helperStatus.running = true;
@@ -271,6 +342,19 @@ function registerHandlers(deps) {
 	// --- Fill response ---
 
 	ipcMain.on('fill:respond', async (_event, payload) => {
+		if (
+			_event.senderFrame !== _event.sender.mainFrame ||
+			_event.senderFrame.url !==
+				require('url').pathToFileURL(require('path').join(__dirname, '../renderer/fill.html')).href
+		)
+			return;
+		if (
+			!payload ||
+			typeof payload.requestId !== 'string' ||
+			typeof payload.values !== 'object' ||
+			Object.keys(payload.values || {}).length > 50
+		)
+			return;
 		const requestId = payload.requestId;
 		const values = payload.values || {};
 		const cancelled = !!payload.cancelled;
@@ -300,9 +384,8 @@ function registerHandlers(deps) {
 	 * Broadcasts helper status to the main window if it exists.
 	 */
 	function _broadcastHelperStatus() {
-		if (mainWindow && !mainWindow.isDestroyed()) {
-			mainWindow.webContents.send('helper:status', helperStatus);
-		}
+		if (deps.broadcast) deps.broadcast('helper:status', helperStatus);
+		else if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('helper:status', helperStatus);
 	}
 }
 

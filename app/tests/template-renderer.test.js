@@ -44,3 +44,6 @@ describe('template-renderer', () => {
 		});
 	});
 });
+it('keeps macros in inserted clipboard and fill text literal',()=>{
+ expect(renderTemplate('[[clipboard]] [[fill:Name]] [[cursor]]',{clipboard:'[[fill:Injected]]',fillValues:{Name:'[[clipboard]]'}})).toBe('[[fill:Injected]] [[clipboard]] ');
+});

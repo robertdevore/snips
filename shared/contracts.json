@@ -1,14 +1,39 @@
 {
 	"version": 1,
-	"transport": "newline-json",
+	"appVersion": "0.5.0",
+	"transport": "loopback TCP newline JSON commands; loopback HTTP events",
+	"authentication": "private per-install 32-byte secret; token in commands, Authorization Bearer on events",
+	"commandEnvelope": [
+		"protocolVersion",
+		"requestId",
+		"token",
+		"type",
+		"payload"
+	],
+	"eventEnvelope": [
+		"protocolVersion",
+		"requestId",
+		"type",
+		"payload"
+	],
 	"commands": [
 		"config_update",
+		"config_patch",
 		"insert_by_id",
-		"ping"
+		"ping",
+		"request_accessibility",
+		"request_input_monitoring",
+		"fill_response"
 	],
 	"events": [
-		"ack",
 		"expansion_event",
-		"status"
-	]
+		"status",
+		"fill_request"
+	],
+	"limits": {
+		"commandBytes": 16777216,
+		"eventBytes": 262144,
+		"timeoutMs": 5000
+	},
+	"revision": "config_patch baseRevision must equal helper revision; next revision must be base + 1; failed sync forces full recovery"
 }
