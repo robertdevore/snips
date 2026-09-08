@@ -12,7 +12,17 @@
 	<body>
 		<div class="titlebar-drag"></div>
 		<div class="app-shell">
-			<aside class="sidebar">
+			<button
+				id="sidebarToggle"
+				class="icon-only sidebar-toggle"
+				aria-label="Hide sidebar"
+				title="Hide sidebar"
+				aria-expanded="true"
+				aria-controls="sidebar"
+			>
+				<span class="icon" aria-hidden="true" id="sidebarToggleIcon"></span>
+			</button>
+			<aside class="sidebar" id="sidebar">
 				<div class="sidebar-header">
 					<div class="brand-row">
 						<div class="brand-left">

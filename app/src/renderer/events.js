@@ -1,5 +1,6 @@
 import { state, els, initEls, initExtraEls, extra, modalState } from './state.js';
 import { ICONS } from './icons.js';
+import { initSidebar } from './sidebar.js';
 import { showToast } from './toast.js';
 import { groupNameFromFilename, importCsvFiles } from './import.js';
 import { renderStatsCharts } from './charts.js';
@@ -707,6 +708,7 @@ export async function boot() {
 	initEls();
 	initExtraEls();
 	wireEvents();
+	initSidebar();
 	console.log('Snips: DOM ready, loading data');
 	await loadGroups();
 	console.log('Snips: groups loaded (' + state.groups.length + ')');
