@@ -2,6 +2,11 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 const { makeId, chunkIds } = require('./db-utils');
+const { migrate } = require('./migrations');
+const { validateSnippet } = require('./validation');
+const fail = (code, message = code) => {
+	throw Object.assign(new Error(message), { code });
+};
 
 /**
  * @typedef {object} Group
@@ -63,15 +68,24 @@ class SnipsDb {
 	constructor(baseDir) {
 		this.baseDir = baseDir;
 		if (!fs.existsSync(baseDir)) {
-			fs.mkdirSync(baseDir, { recursive: true });
+			fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 });
 		}
 		this.dbPath = path.join(baseDir, 'snips.db');
 		this.db = new Database(this.dbPath);
+		fs.chmodSync(this.dbPath, 0o600);
 		this.db.pragma('journal_mode = WAL');
-		this.initialize();
+		this.db.pragma('busy_timeout = 5000');
+		this.source = 'gui';
+		try {
+			this.initialize();
+		} catch (error) {
+			this.db.close();
+			throw error;
+		}
 	}
 
 	initialize() {
+		if (this.db.pragma('user_version', { simple: true }) > 1) fail('DATABASE_TOO_NEW');
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS groups (
 				id TEXT PRIMARY KEY,
@@ -130,18 +144,7 @@ class SnipsDb {
 	}
 
 	runMigrations() {
-		// Add deletedAt to snippets if missing (soft-delete support)
-		try {
-			this.db.exec('ALTER TABLE snippets ADD COLUMN deletedAt INTEGER');
-		} catch (_e) {
-			/* Column already exists */
-		}
-		// Add deletedAt to groups if missing
-		try {
-			this.db.exec('ALTER TABLE groups ADD COLUMN deletedAt INTEGER');
-		} catch (_e) {
-			/* Column already exists */
-		}
+		migrate(this.db);
 	}
 
 	ensureDefaults() {
@@ -219,7 +222,7 @@ class SnipsDb {
 	 * @returns {Group|undefined}
 	 */
 	getGroupByName(name) {
-		return this.db.prepare('SELECT * FROM groups WHERE name = ? LIMIT 1').get(name);
+		return this.db.prepare('SELECT * FROM groups WHERE name = ? AND deletedAt IS NULL LIMIT 1').get(name);
 	}
 
 	/**
@@ -232,6 +235,8 @@ class SnipsDb {
 	 * @returns {Group}
 	 */
 	saveGroup(group) {
+		if (!group || typeof group.name !== 'string' || !group.name.trim() || group.name.length > 200)
+			fail('INVALID_GROUP');
 		const now = Date.now();
 		const id = group.id || makeId('group');
 		const existing = this.db.prepare('SELECT id FROM groups WHERE id = ?').get(id);
@@ -255,9 +260,14 @@ class SnipsDb {
 	 * @param {string} id
 	 */
 	deleteGroup(id) {
-		const fallback = 'default';
-		this.db.prepare('UPDATE snippets SET groupId = ? WHERE groupId = ? AND deletedAt IS NULL').run(fallback, id);
-		this.db.prepare('UPDATE groups SET deletedAt = ? WHERE id = ? AND id != ?').run(Date.now(), id, fallback);
+		return this.db
+			.transaction(() => {
+				if (id === 'default') fail('DEFAULT_GROUP');
+				for (const snippet of this.listSnippets({ groupId: id }))
+					this.saveSnippet({ ...snippet, groupId: 'default' });
+				this.db.prepare('UPDATE groups SET deletedAt=? WHERE id=?').run(Date.now(), id);
+			})
+			.immediate();
 	}
 
 	/**
@@ -266,7 +276,9 @@ class SnipsDb {
 	 * @returns {Snippet|undefined}
 	 */
 	getSnippetByAbbreviation(abbreviation) {
-		return this.db.prepare('SELECT * FROM snippets WHERE abbreviation = ? LIMIT 1').get(abbreviation);
+		return this.db
+			.prepare('SELECT * FROM snippets WHERE abbreviation = ? AND deletedAt IS NULL LIMIT 1')
+			.get(abbreviation);
 	}
 
 	/**
@@ -277,17 +289,54 @@ class SnipsDb {
 	 * @param {string} [options.sort] - Sort mode (updated_desc, created_desc, name_asc, etc.)
 	 * @returns {Snippet[]}
 	 */
-	listSnippets({ query = '', groupId = null, sort = 'updated_desc' } = {}) {
-		let sql = 'SELECT * FROM snippets WHERE deletedAt IS NULL';
+	listSnippets({
+		query = '',
+		groupId = null,
+		sort = 'updated_desc',
+		trash = false,
+		limit = 50000,
+		offset = 0,
+		tag = null,
+		favorite = false,
+		metadata = false,
+		countOnly = false
+	} = {}) {
+		if (typeof query !== 'string' || query.length > 500) fail('INVALID_QUERY');
+		const fts = query
+			.match(/[\p{L}\p{N}_]+/gu)
+			?.map((t) => '"' + t + '"*')
+			.join(' AND ');
+		let sql =
+			(metadata
+				? 'SELECT snippets.id, groupId, snippets.name, snippets.abbreviation, enabled, favorite, updatedAt, revision, substr(snippets.content,1,120) AS preview'
+				: 'SELECT snippets.*') +
+			(fts
+				? ' FROM snippets JOIN snippet_search ON snippet_search.rowid=snippets.rowid WHERE deletedAt IS '
+				: ' FROM snippets WHERE deletedAt IS ') +
+			(trash ? 'NOT NULL' : 'NULL');
+		if (!Number.isInteger(limit) || limit < 1 || limit > 50000 || !Number.isInteger(offset) || offset < 0)
+			fail('INVALID_PAGINATION');
+		if (typeof query !== 'string' || query.length > 500) fail('INVALID_QUERY');
 		const params = [];
 		if (groupId) {
 			sql += ' AND groupId = ?';
 			params.push(groupId);
 		}
-		if (query) {
-			sql += ' AND (name LIKE ? OR abbreviation LIKE ? OR content LIKE ?)';
-			const like = `%${query}%`;
-			params.push(like, like, like);
+		if (tag) {
+			sql += ' AND id IN (SELECT snippetId FROM snippet_tags WHERE tag=?)';
+			params.push(tag);
+		}
+		if (favorite) sql += ' AND favorite=1';
+		if (fts) {
+			sql += ' AND snippet_search MATCH ?';
+			params.push(fts);
+		} else if (query) {
+			sql += ' AND snippets.abbreviation LIKE ?';
+			params.push(query + '%');
+		}
+		if (countOnly) {
+			const from = sql.slice(sql.indexOf(' FROM '));
+			return this.db.prepare('SELECT COUNT(*) AS total' + from).get(...params).total;
 		}
 		let order = 'updatedAt DESC';
 		switch (String(sort || '')) {
@@ -307,14 +356,20 @@ class SnipsDb {
 				order = 'name COLLATE NOCASE DESC';
 				break;
 			case 'recently_used':
-				order = 'updatedAt DESC';
+				order = '(SELECT MAX(timestamp) FROM events WHERE snippetId=snippets.id) DESC';
 				break;
 			case 'updated_desc':
 			default:
 				order = 'updatedAt DESC';
 				break;
 		}
-		sql += ` ORDER BY favorite DESC, ${order}`;
+		if (fts) {
+			sql +=
+				' ORDER BY (snippets.abbreviation = ?) DESC, bm25(snippet_search,8,12,1), favorite DESC, snippets.id';
+			params.push(query);
+		} else sql += ` ORDER BY favorite DESC, ${order}, id`;
+		sql += ' LIMIT ? OFFSET ?';
+		params.push(limit, offset);
 		const rows = this.db.prepare(sql).all(...params);
 		const tagsBySnippet = this.listTagsForSnippets(rows.map((row) => row.id));
 		return rows.map((row) => ({ ...row, tags: tagsBySnippet.get(row.id) || [] }));
@@ -348,8 +403,10 @@ class SnipsDb {
 	 * @param {string} id
 	 * @returns {Snippet|null}
 	 */
-	getSnippet(id) {
-		const row = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(id);
+	getSnippet(id, { includeDeleted = false } = {}) {
+		const row = this.db
+			.prepare('SELECT * FROM snippets WHERE id = ?' + (includeDeleted ? '' : ' AND deletedAt IS NULL'))
+			.get(id);
 		if (!row) {
 			return null;
 		}
@@ -385,6 +442,18 @@ class SnipsDb {
 	 * @returns {Snippet}
 	 */
 	saveSnippet(snippet) {
+		return this.db.transaction(() => this._saveSnippet(snippet)).immediate();
+	}
+	_saveSnippet(snippet) {
+		const validation = validateSnippet(snippet);
+		if (!validation.valid) fail('VALIDATION_ERROR', JSON.stringify(validation.errors));
+		if (
+			!this.db.prepare('SELECT id FROM groups WHERE id=? AND deletedAt IS NULL').get(snippet.groupId || 'default')
+		)
+			fail('GROUP_NOT_FOUND');
+		const before = snippet.id ? this.getSnippet(snippet.id, { includeDeleted: true }) : null;
+		if (before?.deletedAt) fail('SNIPPET_TRASHED');
+		if (snippet.ifRevision !== undefined && before?.revision !== snippet.ifRevision) fail('REVISION_CONFLICT');
 		const now = Date.now();
 		const id = snippet.id || makeId('snippet');
 		const existing = this.db.prepare('SELECT id FROM snippets WHERE id = ?').get(id);
@@ -405,7 +474,7 @@ class SnipsDb {
 				.prepare(
 					`
 				UPDATE snippets
-				SET groupId = ?, name = ?, abbreviation = ?, content = ?, enabled = ?, favorite = ?, notes = ?, triggerMode = ?, caseMode = ?, updatedAt = ?
+				SET groupId = ?, name = ?, abbreviation = ?, content = ?, enabled = ?, favorite = ?, notes = ?, triggerMode = ?, caseMode = ?, revision = revision + 1, updatedAt = ?
 				WHERE id = ?
 			`
 				)
@@ -456,7 +525,9 @@ class SnipsDb {
 			}
 		}
 
-		return this.getSnippet(id);
+		const saved = this.getSnippet(id);
+		this.recordHistory(id, before ? 'update' : 'create', before, saved);
+		return saved;
 	}
 
 	/**
@@ -464,7 +535,71 @@ class SnipsDb {
 	 * @param {string} id
 	 */
 	deleteSnippet(id) {
-		this.db.prepare('UPDATE snippets SET deletedAt = ? WHERE id = ?').run(Date.now(), id);
+		return this.changeTrash(id, true);
+	}
+
+	recordHistory(id, operation, before, after) {
+		this.db
+			.prepare(
+				'INSERT INTO history(snippetId,operation,timestamp,source,beforeState,afterState) VALUES(?,?,?,?,?,?)'
+			)
+			.run(
+				id,
+				operation,
+				Date.now(),
+				this.source,
+				before ? JSON.stringify(before) : null,
+				after ? JSON.stringify(after) : null
+			);
+		this.db
+			.prepare(
+				'DELETE FROM history WHERE snippetId=? AND id NOT IN (SELECT id FROM history WHERE snippetId=? ORDER BY id DESC LIMIT 100)'
+			)
+			.run(id, id);
+	}
+	history(id) {
+		return this.db
+			.prepare(
+				'SELECT id,snippetId,operation,timestamp,source,(beforeState IS NOT NULL) AS hasBefore FROM history WHERE snippetId=? ORDER BY id DESC LIMIT 100'
+			)
+			.all(id);
+	}
+	historyEntry(id, historyId) {
+		return this.db.prepare('SELECT * FROM history WHERE snippetId=? AND id=?').get(id, historyId);
+	}
+
+	changeTrash(id, trash, ifRevision) {
+		return this.db
+			.transaction(() => {
+				const before = this.getSnippet(id, { includeDeleted: true });
+				if (!before) fail('NOT_FOUND');
+				if (ifRevision !== undefined && before.revision !== ifRevision) fail('REVISION_CONFLICT');
+				if (Boolean(before.deletedAt) === trash) return before;
+				let group = before.groupId;
+				if (!this.listGroups().some((g) => g.id === group)) group = 'default';
+				this.db
+					.prepare('UPDATE snippets SET deletedAt=?,groupId=?,revision=revision+1,updatedAt=? WHERE id=?')
+					.run(trash ? Date.now() : null, group, Date.now(), id);
+				const after = this.getSnippet(id, { includeDeleted: true });
+				this.recordHistory(id, trash ? 'trash' : 'restore', before, after);
+				return after;
+			})
+			.immediate();
+	}
+	purgeSnippet(id, ifRevision) {
+		return this.db
+			.transaction(() => {
+				const s = this.getSnippet(id, { includeDeleted: true });
+				if (!s?.deletedAt) fail('TRASH_REQUIRED');
+				if (ifRevision !== undefined && s.revision !== ifRevision) fail('REVISION_CONFLICT');
+				for (const table of ['snippet_tags', 'events', 'history'])
+					this.db.prepare(`DELETE FROM ${table} WHERE snippetId=?`).run(id);
+				this.db.prepare('DELETE FROM snippets WHERE id=?').run(id);
+				// Retry receipts can contain previous contents; purge those too.
+				this.db.prepare('DELETE FROM idempotency').run();
+				return { id, purged: true };
+			})
+			.immediate();
 	}
 
 	/**
@@ -486,13 +621,49 @@ class SnipsDb {
 	 * @returns {Settings}
 	 */
 	saveSettings(input) {
-		const stmt = this.db.prepare(
-			'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
-		);
+		const existing = this.getSettings();
 		for (const [key, value] of Object.entries(input || {})) {
-			stmt.run(key, String(value));
+			if (!Object.hasOwn(existing, key)) fail('UNKNOWN_SETTING');
+			const text = String(value);
+			if (text.length > 1048576) fail('SETTING_TOO_LARGE');
+			if (['enabled', 'pauseExpansions'].includes(key) && !['true', 'false'].includes(text))
+				fail('INVALID_SETTING');
+			const ranges = { wpm: [60, 500], charsPerWord: [1, 20], maxBufferLength: [1, 2000] };
+			if (
+				ranges[key] &&
+				(!Number.isInteger(Number(text)) || Number(text) < ranges[key][0] || Number(text) > ranges[key][1])
+			)
+				fail('INVALID_SETTING');
+			if (
+				(key === 'helperHost' && text !== '127.0.0.1') ||
+				(key === 'helperPort' && text !== '50555') ||
+				(key === 'appEventPort' && text !== '50556')
+			)
+				fail('FIXED_HELPER_ENDPOINT');
+			if (key === 'secureInputBehavior' && text !== 'disable') fail('SECURE_INPUT_REQUIRED');
+			if (key === 'excludedApps') {
+				const apps = JSON.parse(text);
+				if (
+					!Array.isArray(apps) ||
+					apps.length > 500 ||
+					apps.some((a) => typeof a !== 'string' || a.length > 256)
+				)
+					fail('INVALID_SETTING');
+			}
+			if (key === 'userAvatar' && text && !/^data:image\/(png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(text))
+				fail('INVALID_AVATAR');
 		}
-		return this.getSettings();
+		return this.db
+			.transaction(() => {
+				const stmt = this.db.prepare(
+					'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+				);
+				for (const [key, value] of Object.entries(input || {})) {
+					stmt.run(key, String(value));
+				}
+				return this.getSettings();
+			})
+			.immediate();
 	}
 
 	/**
@@ -510,7 +681,7 @@ class SnipsDb {
 		this.db
 			.prepare(
 				`
-			INSERT INTO events (id, snippetId, timestamp, charsInserted, charsSaved, timeSavedMs, appBundleId)
+			INSERT OR IGNORE INTO events (id, snippetId, timestamp, charsInserted, charsSaved, timeSavedMs, appBundleId)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 		`
 			)

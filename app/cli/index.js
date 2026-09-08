@@ -51,70 +51,148 @@ const dbPath = path.join(dataDir, 'snips.db');
 // ---------------------------------------------------------------------------
 
 const args = process.argv.slice(2);
-
-function hasFlag(name) {
-	return args.includes('--' + name) || args.includes('-' + name[0]);
+let parsed;
+try {
+	parsed = require('./parser').parse(args);
+} catch (e) {
+	console.error(JSON.stringify({ ok: false, error: { code: e.code, message: e.message } }));
+	process.exit(2);
 }
-
-function getFlagValue(name) {
-	const longIdx = args.indexOf('--' + name);
-	if (longIdx >= 0 && longIdx + 1 < args.length && !args[longIdx + 1].startsWith('-')) {
-		return args[longIdx + 1];
-	}
-	const shortIdx = args.indexOf('-' + name[0]);
-	if (shortIdx >= 0 && shortIdx + 1 < args.length && !args[shortIdx + 1].startsWith('-')) {
-		return args[shortIdx + 1];
-	}
-	return null;
-}
-
-// Parse positional args (non-flag, non-flag-value args)
-function positionalArgs() {
-	const pos = [];
-	let i = 0;
-	while (i < args.length) {
-		const a = args[i];
-		if (!a.startsWith('-')) {
-			pos.push(a);
-			i++;
-			continue;
-		}
-		// Check if this flag takes a value
-		const flagName = a.replace(/^--?/, '');
-		const valueFlags = ['name', 'abbr', 'content', 'group', 'tags', 'out', 'in', 'format', 'strata-url'];
-		if (valueFlags.indexOf(flagName) >= 0 && i + 1 < args.length && !args[i + 1].startsWith('-')) {
-			i += 2; // skip flag and its value
-		} else {
-			i += 1; // skip boolean flag
-		}
-	}
-	return pos;
-}
-
-const pos = positionalArgs();
+const { flags, pos, command } = parsed;
+const hasFlag = (name) => flags[name] === true;
+const getFlagValue = (name) => flags[name] ?? null;
 const isJson = hasFlag('json');
 const isDryRun = hasFlag('dry-run');
 const isConfirm = hasFlag('confirm');
-const command = pos[0];
+const { execute } = require('../src/main/operations');
+const { LIMITS } = require('../src/main/validation');
+function readBounded(file = 0) {
+	const fd = typeof file === 'number' ? file : fs.openSync(file, 'r');
+	const chunks = [];
+	let size = 0;
+	const buffer = Buffer.alloc(65536);
+	try {
+		for (;;) {
+			const n = fs.readSync(fd, buffer, 0, buffer.length, null);
+			if (!n) break;
+			size += n;
+			if (size > LIMITS.input) throw Object.assign(new Error('Input exceeds 8 MiB'), { code: 'INPUT_TOO_LARGE' });
+			chunks.push(Buffer.from(buffer.subarray(0, n)));
+		}
+	} finally {
+		if (typeof file !== 'number') fs.closeSync(fd);
+	}
+	return Buffer.concat(chunks).toString('utf8');
+}
+function inputSnippet() {
+	let s = hasFlag('stdin-json') ? JSON.parse(readBounded()) : {};
+	if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('Expected snippet JSON object');
+	for (const [flag, field] of Object.entries({
+		name: 'name',
+		abbr: 'abbreviation',
+		content: 'content',
+		group: 'groupId'
+	}))
+		if (flags[flag] !== undefined) s[field] = flags[flag];
+	if (flags.tags !== undefined)
+		s.tags = flags.tags
+			.split(',')
+			.map((t) => t.trim())
+			.filter(Boolean);
+	if (hasFlag('content-stdin')) s.content = readBounded();
+	if (flags['content-file']) s.content = readBounded(flags['content-file']);
+	return s;
+}
+function readOptions() {
+	const limit = Number(flags.limit ?? 50),
+		offset = Number(flags.offset ?? 0);
+	if (limit < 1 || limit > 500)
+		throw Object.assign(new Error('--limit must be 1–500'), { code: 'INVALID_PAGINATION' });
+	return {
+		limit,
+		offset,
+		groupId: flags.group,
+		tag: flags.tag,
+		favorite: hasFlag('favorite'),
+		metadata: !hasFlag('include-content') && !flags.fields?.split(',').includes('content'),
+		trash: hasFlag('trash')
+	};
+}
+function project(rows) {
+	if (hasFlag('ids-only')) return rows.map((s) => s.id);
+	const allowed = [
+		'id',
+		'name',
+		'abbreviation',
+		'groupId',
+		'tags',
+		'enabled',
+		'favorite',
+		'updatedAt',
+		'revision',
+		'preview',
+		'content',
+		'notes',
+		'triggerMode',
+		'caseMode',
+		'createdAt'
+	];
+	const fields = flags.fields?.split(',');
+	if (fields?.some((f) => !allowed.includes(f)))
+		throw Object.assign(new Error('Unknown output field'), { code: 'INVALID_FIELDS' });
+	return rows.map((s) => (fields ? Object.fromEntries(fields.map((f) => [f, s[f]])) : s));
+}
+function cmdMutate(type) {
+	if (!isDryRun && !isConfirm && type !== 'create') cliError('CONFIRM_REQUIRED', 'Use --dry-run or --confirm.', 2);
+	const db = loadDb();
+	try {
+		let operations;
+		if (type === 'batch') {
+			if (!hasFlag('stdin-json') && !hasFlag('stdin-jsonl'))
+				cliError('INPUT_REQUIRED', 'Use --stdin-json or --stdin-jsonl.', 2);
+			const text = readBounded();
+			operations = hasFlag('stdin-jsonl')
+				? text
+						.split(/\r?\n/)
+						.filter((l) => l.trim())
+						.map((l) => JSON.parse(l))
+				: JSON.parse(text);
+		} else {
+			const op = {
+				type,
+				id: pos[1],
+				ifRevision: flags['if-revision'] === undefined ? undefined : Number(flags['if-revision'])
+			};
+			if (type === 'create') op.snippet = { groupId: 'default', ...inputSnippet() };
+			if (type === 'update') op.patch = inputSnippet();
+			if (type === 'revert') op.historyId = Number(flags['history-id']);
+			operations = [op];
+		}
+		output(execute(db, operations, { dryRun: isDryRun, idempotencyKey: flags['idempotency-key'] }));
+	} finally {
+		db.db.close();
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Output helpers
 // ---------------------------------------------------------------------------
 
 function output(data) {
+	if (hasFlag('quiet')) return;
 	if (isJson) {
-		process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+		process.stdout.write(JSON.stringify(data, null, hasFlag('pretty') ? 2 : undefined) + '\n');
 	} else if (typeof data === 'string') {
 		console.log(data);
 	} else {
-		console.log(JSON.stringify(data, null, 2));
+		console.log(JSON.stringify(data, null, hasFlag('pretty') ? 2 : undefined));
 	}
 }
 
 function cliError(code, message, exitCode) {
 	exitCode = exitCode || 1;
 	if (isJson) {
-		process.stderr.write(JSON.stringify({ error: { code, message } }) + '\n');
+		process.stderr.write(JSON.stringify({ ok: false, error: { code, message } }) + '\n');
 	} else {
 		process.stderr.write('Error: ' + message + '\n');
 	}
@@ -137,76 +215,50 @@ function loadDb() {
 	}
 }
 
-function loadValidate() {
-	return require('../src/main/validation').validateSnippet;
-}
-
 // ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
 
 function showHelp() {
-	console.log(
-		[
-			`Snips CLI v${APP_VERSION} — snippet manager`,
-			'',
-			'Usage: snips <command> [options]',
-			'',
-			'Commands:',
-			'  list                  List all snippets',
-			'  search <query>        Search snippets by name, abbreviation, or content',
-			'  get <id>              Get full snippet details',
-			'  create                Create a new snippet',
-			'  update <id>           Update an existing snippet',
-			'  export                Export all snippets to JSON',
-			'  import                Import snippets from JSON file',
-			'  health                Show database and app status',
-			'  show                  Show current configuration',
-			'  doctor                Validate configuration and report issues',
-			'  strata                Exchange snippets with the Strata local API',
-			'',
-			'Create options:',
-			'  --name "Title"        Snippet name (required)',
-			'  --abbr ";addr"        Abbreviation (required for enabled snippets)',
-			'  --content "text"      Snippet content (required)',
-			'  --group "Support"     Group name or ID (default: default)',
-			'  --tags "email,refund" Comma-separated tags',
-			'  --dry-run             Validate without saving',
-			'',
-			'Update options:',
-			'  --name "New Title"    New snippet name',
-			'  --abbr ";new"         New abbreviation',
-			'  --content "new text"  New snippet content',
-			'  --confirm             Required to apply changes',
-			'  --dry-run             Preview changes without saving',
-			'',
-			'Export options:',
-			'  --out ./export.json   Output file path (default: stdout)',
-			'',
-			'Import options:',
-			'  --in ./import.json    Input file path (required)',
-			'  --confirm             Required to apply import',
-			'  --dry-run             Preview what would be imported',
-			'',
-			'Global options:',
-			'  --json                Machine-readable JSON output',
-			'  --help                Show this help',
-			'',
-			'Exit codes: 0 = success, 1 = error, 2 = usage error'
-		].join('\n')
-	);
+	console.log(`Snips ${APP_VERSION}
+Usage: snips <command> [options]
+Commands: ${Object.keys(require('./parser').schema).join(', ')}
+Use snips capabilities --json for flags, limits and mutation schemas.
+Search/list default to 50 metadata records. Use get <id> for content.
+Writes: --dry-run previews; --confirm commits (create needs no confirmation).
+Content: --content-stdin, --content-file <path>, or --stdin-json.
+Concurrency: --if-revision <n>. Retries: --idempotency-key <key>.
+Only -h (--help) and -j (--json) have short aliases.`);
 }
 
 async function strataRequest(pathname, options) {
 	const base = (getFlagValue('strata-url') || process.env.STRATA_URL || 'http://127.0.0.1:3939').replace(/\/$/, '');
+	const endpoint = new URL(base);
+	if (
+		endpoint.protocol !== 'http:' ||
+		!['127.0.0.1', '[::1]'].includes(endpoint.hostname) ||
+		endpoint.username ||
+		endpoint.password ||
+		endpoint.search ||
+		endpoint.hash
+	)
+		throw new Error('Strata requires an explicit loopback HTTP endpoint.');
 	const headers = { Accept: 'application/json', ...((options && options.headers) || {}) };
 	if (process.env.STRATA_API_TOKEN) headers['X-Strata-Token'] = process.env.STRATA_API_TOKEN;
 	const response = await globalThis.fetch(base + pathname, {
 		...options,
+		redirect: 'error',
 		headers,
 		signal: globalThis.AbortSignal.timeout(5000)
 	});
-	const text = await response.text();
+	let total = 0;
+	const chunks = [];
+	for await (const chunk of response.body) {
+		total += chunk.length;
+		if (total > LIMITS.input) throw new Error('Strata response too large');
+		chunks.push(Buffer.from(chunk));
+	}
+	const text = Buffer.concat(chunks).toString('utf8');
 	let data = {};
 	try {
 		data = text ? JSON.parse(text) : {};
@@ -242,6 +294,8 @@ async function cmdStrata() {
 	const action = pos[1];
 	try {
 		if ('save-snippet' === action) {
+			if (!isConfirm && !isDryRun)
+				cliError('CONFIRM_REQUIRED', 'Strata export requires --confirm or --dry-run.', 2);
 			const id = pos[2];
 			if (!id) cliError('MISSING_ID', 'Usage: snips strata save-snippet <id>', 2);
 			const db = loadDb();
@@ -252,6 +306,7 @@ async function cmdStrata() {
 				db.db.close();
 			}
 			if (!snippet) cliError('NOT_FOUND', 'Snippet not found: ' + id, 1);
+			if (isDryRun) return output({ ok: true, dryRun: true, id });
 			const data = await strataRequest('/notes', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -267,14 +322,17 @@ async function cmdStrata() {
 			if (!id) cliError('MISSING_ID', 'Usage: snips strata import-note <note-id> [--dry-run|--confirm]', 2);
 			const data = await strataRequest('/notes/' + encodeURIComponent(id));
 			const snippet = noteToSnippet(data.note);
-			if (isDryRun) return output({ ok: true, dryRun: true, snippet });
-			if (!isConfirm) cliError('CONFIRM_REQUIRED', 'Import requires --confirm. Use --dry-run to preview.', 2);
+
+			if (!isConfirm && !isDryRun)
+				cliError('CONFIRM_REQUIRED', 'Import requires --confirm. Use --dry-run to preview.', 2);
 			const db = loadDb();
 			try {
 				if (db.getSnippetByAbbreviation(snippet.abbreviation)) {
 					cliError('ABBREVIATION_EXISTS', `Abbreviation ${snippet.abbreviation} already exists.`, 1);
 				}
-				const saved = db.saveSnippet(snippet);
+				const result = execute(db, [{ type: 'create', snippet }], { dryRun: isDryRun, source: 'import' });
+				if (isDryRun) return output(result);
+				const saved = result.results[0];
 				return output(isJson ? { ok: true, snippet: saved } : `Imported Strata note as ${saved.abbreviation}.`);
 			} finally {
 				db.db.close();
@@ -308,9 +366,14 @@ async function cmdStrata() {
 function cmdList() {
 	const db = loadDb();
 	try {
-		const snippets = db.listSnippets();
+		if (hasFlag('count')) return output({ count: db.listSnippets({ ...readOptions(), countOnly: true }) });
+		const snippets = db.listSnippets(readOptions());
 		if (isJson) {
-			output({ count: snippets.length, snippets: snippets });
+			output({
+				count: snippets.length,
+				offset: Number(flags.offset ?? 0),
+				snippets: hasFlag('count') ? undefined : project(snippets)
+			});
 		} else if (0 === snippets.length) {
 			console.log('No snippets found.');
 		} else {
@@ -332,9 +395,15 @@ function cmdSearch() {
 	if (!query) cliError('MISSING_QUERY', 'Search query required. Usage: snips search <query>', 2);
 	const db = loadDb();
 	try {
-		const snippets = db.listSnippets({ query: query });
+		if (hasFlag('count')) return output({ count: db.listSnippets({ query, ...readOptions(), countOnly: true }) });
+		const snippets = db.listSnippets({ query, ...readOptions() });
 		if (isJson) {
-			output({ query: query, count: snippets.length, snippets: snippets });
+			output({
+				query,
+				count: snippets.length,
+				offset: Number(flags.offset ?? 0),
+				snippets: hasFlag('count') ? undefined : project(snippets)
+			});
 		} else if (0 === snippets.length) {
 			console.log('No snippets match "' + query + '".');
 		} else {
@@ -359,7 +428,7 @@ function cmdGet() {
 		const s = db.getSnippet(id);
 		if (!s) cliError('NOT_FOUND', 'Snippet not found: ' + id, 1);
 		if (isJson) {
-			output(s);
+			output(flags.fields ? project([s])[0] : s);
 		} else {
 			console.log('Name:         ' + s.name);
 			console.log('Abbreviation: ' + s.abbreviation);
@@ -379,133 +448,6 @@ function cmdGet() {
 // Command: create
 // ---------------------------------------------------------------------------
 
-function cmdCreate() {
-	const name = getFlagValue('name');
-	const abbr = getFlagValue('abbr');
-	const content = getFlagValue('content');
-	const groupFlag = getFlagValue('group');
-	const tagsFlag = getFlagValue('tags');
-
-	if (!name && !abbr && !content) {
-		cliError('MISSING_ARGS', 'At least --name, --abbr, and --content are required. Use --help for usage.', 2);
-	}
-
-	// Parse tags
-	const tags = tagsFlag
-		? tagsFlag
-				.split(',')
-				.map(function (t) {
-					return t.trim();
-				})
-				.filter(Boolean)
-		: [];
-
-	const snippet = {
-		name: name || '',
-		abbreviation: abbr || '',
-		content: content || '',
-		groupId: groupFlag || 'default',
-		tags: tags,
-		enabled: true
-	};
-
-	const validate = loadValidate();
-	const result = validate(snippet);
-	if (!result.valid) {
-		if (isJson) {
-			output({ ok: false, errors: result.errors });
-		} else {
-			result.errors.forEach(function (e) {
-				console.error('  [' + e.field + '] ' + e.message);
-			});
-			console.error('Validation failed. Use --dry-run to preview without saving.');
-		}
-		process.exit(1);
-	}
-
-	if (isDryRun) {
-		output({ ok: true, dryRun: true, snippet: snippet });
-		return;
-	}
-
-	const db = loadDb();
-	try {
-		const saved = db.saveSnippet(snippet);
-		output(isJson ? { ok: true, snippet: saved } : 'Created snippet "' + saved.name + '" [' + saved.id + ']');
-	} finally {
-		db.db.close();
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Command: update
-// ---------------------------------------------------------------------------
-
-function cmdUpdate() {
-	const id = pos[1];
-	if (!id) cliError('MISSING_ID', 'Snippet ID required. Usage: snips update <id> [options]', 2);
-
-	const db = loadDb();
-	try {
-		const existing = db.getSnippet(id);
-		if (!existing) cliError('NOT_FOUND', 'Snippet not found: ' + id, 1);
-
-		const name = getFlagValue('name');
-		const abbr = getFlagValue('abbr');
-		const content = getFlagValue('content');
-
-		if (!name && !abbr && !content) {
-			cliError('MISSING_ARGS', 'At least one of --name, --abbr, or --content is required.', 2);
-		}
-
-		const updated = {
-			id: id,
-			name: name || existing.name,
-			abbreviation: abbr || existing.abbreviation,
-			content: content || existing.content,
-			groupId: existing.groupId,
-			tags: existing.tags || [],
-			enabled: existing.enabled,
-			favorite: existing.favorite,
-			triggerMode: existing.triggerMode,
-			caseMode: existing.caseMode,
-			notes: existing.notes
-		};
-
-		if (isDryRun) {
-			output({
-				ok: true,
-				dryRun: true,
-				before: { name: existing.name, abbreviation: existing.abbreviation, content: existing.content },
-				after: { name: updated.name, abbreviation: updated.abbreviation, content: updated.content }
-			});
-			return;
-		}
-
-		if (!isConfirm) {
-			cliError('CONFIRM_REQUIRED', 'Update requires --confirm. Use --dry-run to preview changes first.', 2);
-		}
-
-		const validate = loadValidate();
-		const result = validate(updated);
-		if (!result.valid) {
-			if (isJson) {
-				output({ ok: false, errors: result.errors });
-			} else {
-				result.errors.forEach(function (e) {
-					console.error('  [' + e.field + '] ' + e.message);
-				});
-			}
-			process.exit(1);
-		}
-
-		const saved = db.saveSnippet(updated);
-		output(isJson ? { ok: true, snippet: saved } : 'Updated snippet "' + saved.name + '" [' + saved.id + ']');
-	} finally {
-		db.db.close();
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Command: export
 // ---------------------------------------------------------------------------
@@ -524,14 +466,15 @@ function cmdExport() {
 			snippets: snippets
 		};
 
-		const json = JSON.stringify(data, null, 2);
+		const json = JSON.stringify(data, null, hasFlag('pretty') ? 2 : undefined);
 		if (outPath) {
 			const resolvedOut = path.resolve(outPath);
 			const tempOut = resolvedOut + '.tmp-' + process.pid;
 			fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
 			try {
 				fs.writeFileSync(tempOut, json, { encoding: 'utf8', mode: 0o600 });
-				fs.renameSync(tempOut, resolvedOut);
+				if (!isConfirm) fs.linkSync(tempOut, resolvedOut);
+				else fs.renameSync(tempOut, resolvedOut);
 			} finally {
 				if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
 			}
@@ -559,7 +502,7 @@ function cmdImport() {
 
 	let data;
 	try {
-		data = JSON.parse(fs.readFileSync(inPath, 'utf8'));
+		data = JSON.parse(readBounded(inPath));
 	} catch (e) {
 		cliError('PARSE_ERROR', 'Could not parse JSON: ' + e.message, 1);
 	}
@@ -570,86 +513,31 @@ function cmdImport() {
 	const snippets = data.snippets;
 	const groups = data.groups;
 
-	if (isDryRun) {
-		output({
-			ok: true,
-			dryRun: true,
-			wouldImport: {
-				groups: groups.length,
-				snippets: snippets.length,
-				preview: snippets.slice(0, 5).map(function (s) {
-					return { name: s.name, abbreviation: s.abbreviation, id: s.id };
-				})
-			}
-		});
-		return;
-	}
-
-	if (!isConfirm) {
-		cliError(
-			'CONFIRM_REQUIRED',
-			'Import requires --confirm. This will import ' +
-				snippets.length +
-				' snippets. Use --dry-run to preview first.',
-			2
-		);
-	}
-
+	if (!isDryRun && !isConfirm) cliError('CONFIRM_REQUIRED', 'Import requires --confirm or --dry-run.', 2);
 	const db = loadDb();
-	const validate = loadValidate();
+	const rollback = {};
+	let result;
 	try {
-		let imported = 0;
-		let skipped = 0;
-		const errors = [];
-
-		// Import groups first
-		for (var gi = 0; gi < groups.length; gi++) {
-			var g = groups[gi];
-			try {
-				db.saveGroup(g);
-			} catch (e) {
-				errors.push({ type: 'group', id: g.id, name: g.name, error: e.message });
-			}
-		}
-
-		// Import snippets
-		for (var si = 0; si < snippets.length; si++) {
-			var snippet = snippets[si];
-			var validation = validate(snippet);
-			if (!validation.valid) {
-				skipped++;
-				errors.push({ type: 'snippet', name: snippet.name, errors: validation.errors });
-				continue;
-			}
-			try {
-				db.saveSnippet(snippet);
-				imported++;
-			} catch (e) {
-				skipped++;
-				errors.push({ type: 'snippet', name: snippet.name, error: e.message });
-			}
-		}
-
-		var result = {
-			ok: true,
-			imported: imported,
-			skipped: skipped
-		};
-		if (errors.length) result.errors = errors;
-
-		if (isJson) {
-			output(result);
-		} else {
-			console.log('Imported ' + imported + ' snippets' + (skipped > 0 ? ', skipped ' + skipped : '') + '.');
-			if (errors.length) {
-				console.error('Errors:');
-				errors.forEach(function (e) {
-					console.error(
-						'  ' + e.type + ': ' + (e.name || e.id || '') + ' — ' + (e.error || JSON.stringify(e.errors))
+		try {
+			db.db
+				.transaction(() => {
+					for (const g of groups) {
+						const prior = db.listGroups().find((x) => x.id === g.id);
+						if (!prior) db.saveGroup(g);
+						else if (prior.name !== g.name) throw new Error('GROUP_CONFLICT');
+					}
+					result = execute(
+						db,
+						snippets.map((snippet) => ({ type: 'create', snippet })),
+						{ source: 'import' }
 					);
-				});
-			}
+					if (isDryRun) throw rollback;
+				})
+				.immediate();
+		} catch (e) {
+			if (e !== rollback) throw e;
 		}
+		output({ ok: true, dryRun: isDryRun, imported: result.results.length });
 	} finally {
 		db.db.close();
 	}
@@ -708,6 +596,21 @@ function cmdDoctor() {
 	try {
 		const settings = db.getSettings();
 		const issues = [];
+		const cliPath = path.join(os.homedir(), '.local/bin/snips');
+		if (!fs.existsSync(cliPath)) issues.push('CLI launcher missing: choose Install / Repair CLI in Snips');
+		if (!(process.env.PATH || '').split(path.delimiter).includes(path.dirname(cliPath)))
+			issues.push('~/.local/bin is not on PATH');
+		const runtimePath = path.join(path.dirname(dataDir), 'runtime-status.json');
+		let runtime = null;
+		try {
+			runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
+		} catch {}
+		if (runtime && Date.now() - runtime.timestamp < 10000)
+			issues.push(
+				...(runtime.hotkeyFailures || []),
+				...(runtime.upgradeRequired ? ['Helper upgrade required'] : [])
+			);
+		else issues.push('Live helper/hotkey status unavailable; start Snips');
 		const wpm = Number(settings.wpm || 220);
 		if (wpm < 60 || wpm > 500) issues.push('WPM out of range: ' + wpm);
 		if (!settings.globalHotkey) issues.push('No palette hotkey configured');
@@ -730,6 +633,51 @@ function main() {
 	}
 
 	switch (command) {
+		case 'capabilities':
+		case 'schema':
+			return output({
+				version: APP_VERSION,
+				protocolVersion: 1,
+				commands: require('./parser').schema,
+				limits: LIMITS,
+				macros: ['date', 'clipboard', 'fill', 'cursor'],
+				caseModes: ['exact'],
+				triggerModes: require('../src/main/validation').TRIGGER_MODES,
+				operations: require('../src/main/operations').OPERATIONS,
+				confirmation: 'Writes except create require --confirm or --dry-run',
+				historyRetention: 100
+			});
+		case 'batch':
+		case 'trash':
+		case 'restore':
+		case 'revert':
+			return cmdMutate(command);
+		case 'groups':
+		case 'history':
+		case 'purge': {
+			const db = loadDb();
+			try {
+				if (command === 'groups') return output(db.listGroups());
+				if (command === 'history')
+					return output(
+						flags['history-id'] ? db.historyEntry(pos[1], Number(flags['history-id'])) : db.history(pos[1])
+					);
+				if (isDryRun) {
+					const snippet = db.getSnippet(pos[1], { includeDeleted: true });
+					if (!snippet?.deletedAt) cliError('TRASH_REQUIRED', 'Only trashed snippets can be purged.', 1);
+					return output({ ok: true, dryRun: true, wouldPurge: snippet.id });
+				}
+				if (!isConfirm) cliError('CONFIRM_REQUIRED', 'Permanent deletion requires --confirm.', 2);
+				return output(
+					db.purgeSnippet(
+						pos[1],
+						flags['if-revision'] === undefined ? undefined : Number(flags['if-revision'])
+					)
+				);
+			} finally {
+				db.db.close();
+			}
+		}
 		case 'list':
 			return cmdList();
 		case 'search':
@@ -737,9 +685,9 @@ function main() {
 		case 'get':
 			return cmdGet();
 		case 'create':
-			return cmdCreate();
+			return cmdMutate('create');
 		case 'update':
-			return cmdUpdate();
+			return cmdMutate('update');
 		case 'export':
 			return cmdExport();
 		case 'import':
@@ -757,4 +705,6 @@ function main() {
 	}
 }
 
-Promise.resolve(main()).catch((error) => cliError('UNEXPECTED_ERROR', error.message || String(error), 1));
+Promise.resolve()
+	.then(main)
+	.catch((error) => cliError(error.code || 'UNEXPECTED_ERROR', error.message || String(error), 1));

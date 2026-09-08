@@ -127,7 +127,9 @@ async function importCsv(db, payload, syncHelperConfig) {
 		return { ok: false, message: 'CSV file was empty.' };
 	}
 
+	if (Buffer.byteLength(csvText) > 8388608) throw new Error('CSV exceeds 8 MiB');
 	let rows = parseCsv(csvText);
+	if (rows.length > 501) throw new Error('Import at most 500 rows at a time');
 	if (!rows.length) {
 		return { ok: false, message: 'No rows found in CSV.' };
 	}
@@ -140,42 +142,48 @@ async function importCsv(db, payload, syncHelperConfig) {
 		rows = rows.slice(1);
 	}
 
-	let group = db.getGroupByName(groupName);
-	if (!group) {
-		group = db.saveGroup({ name: groupName });
-	}
+	const result = db.db
+		.transaction(() => {
+			let group = db.getGroupByName(groupName);
+			if (!group) {
+				group = db.saveGroup({ name: groupName });
+			}
 
-	let created = 0;
-	let updated = 0;
-	let skipped = 0;
-	for (const row of rows) {
-		const abbr = (row[0] ? String(row[0]) : '').trim();
-		const raw = row[1] ? String(row[1]) : '';
-		const label = row[2] ? String(row[2]).trim() : '';
-		if (!abbr || !raw) {
-			skipped++;
-			continue;
-		}
-		let content = htmlToText(raw);
-		content = convertTextExpanderTokens(content);
-		const name = label || abbr;
-		const existing = db.getSnippetByAbbreviation(abbr);
-		const saved = db.saveSnippet({
-			id: existing ? existing.id : null,
-			groupId: group.id,
-			name,
-			abbreviation: abbr,
-			content,
-			enabled: true,
-			favorite: false,
-			notes: ''
-		});
-		if (existing) updated++;
-		else if (saved) created++;
-	}
+			let created = 0;
+			let updated = 0;
+			let skipped = 0;
+			for (const row of rows) {
+				const abbr = (row[0] ? String(row[0]) : '').trim();
+				const raw = row[1] ? String(row[1]) : '';
+				const label = row[2] ? String(row[2]).trim() : '';
+				if (!abbr || !raw) {
+					skipped++;
+					continue;
+				}
+				let content = htmlToText(raw);
+				content = convertTextExpanderTokens(content);
+				const name = label || abbr;
+				const existing = db.getSnippetByAbbreviation(abbr);
+				if (existing) throw new Error('Abbreviation already exists: ' + abbr);
+				const saved = db.saveSnippet({
+					id: existing ? existing.id : null,
+					groupId: group.id,
+					name,
+					abbreviation: abbr,
+					content,
+					enabled: true,
+					favorite: false,
+					notes: ''
+				});
+				if (existing) updated++;
+				else if (saved) created++;
+			}
 
+			return { ok: true, groupId: group.id, groupName: group.name, created, updated, skipped };
+		})
+		.immediate();
 	await syncHelperConfig();
-	return { ok: true, groupId: group.id, groupName: group.name, created, updated, skipped };
+	return result;
 }
 
 module.exports = { parseCsv, decodeEntities, htmlToText, convertTextExpanderTokens, importCsv };
