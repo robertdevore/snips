@@ -5,7 +5,7 @@ const searchEl = document.getElementById('paletteSearch');
 const listEl = document.getElementById('paletteList');
 
 async function fetchItems() {
-	items = await window.snipsApi.listSnippets({ query: searchEl.value || '' });
+	items = await window.snipsApi.listSnippets({ query: searchEl.value || '', limit: 30, metadata: true });
 	selected = 0;
 	render();
 }

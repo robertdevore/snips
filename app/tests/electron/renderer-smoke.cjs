@@ -84,6 +84,7 @@ app.whenReady().then(async () => {
 	try {
 		await win.loadFile(path.join(root, 'app/src/renderer/index.html'));
 		await ready();
+        await run(()=>{window.confirm=()=>true;});
 		// Reproduce the actual save-handler bug, then verify a second save doesn't undo the move.
 		const saved = await run(async () => {
 			const select = document.getElementById('groupSelect');
@@ -97,6 +98,7 @@ app.whenReady().then(async () => {
 		const more = await run(async () => {
 			const { renderGroups, selectSnippet, snippetFormToPayload } = await import('./render.js');
 			const { state } = await import('./state.js');
+            state.lastSavedSnapshot=null;
 			await selectSnippet('two');
 			await selectSnippet('one');
 			const roundTrip = document.getElementById('groupSelect').value;
@@ -113,6 +115,19 @@ app.whenReady().then(async () => {
 			return { roundTrip, unsaved, removed, latest: document.getElementById('nameInput').value };
 		});
 		assert.deepEqual(more, { roundTrip: 'work', unsaved: 'default', removed: 'default', latest: 'Second snippet' });
+        const protection=await run(async()=>{
+            const {selectSnippet,isDirty}=await import('./render.js');
+            const input=document.getElementById('nameInput');
+            input.value='Unsaved draft';
+            window.confirm=()=>false;
+            await selectSnippet('one');
+            const protectedDraft=input.value==='Unsaved draft'&&isDirty();
+            window.confirm=()=>true;
+            await selectSnippet('one');
+            return protectedDraft;
+        });
+        assert.equal(protection,true);
+
 		for (const width of [1180, 900, 1500]) {
 			win.setContentSize(width, 800);
 			await win.webContents.executeJavaScript(`new Promise((resolve, reject) => {

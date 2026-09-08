@@ -1374,3 +1374,26 @@ a,
 	white-space: nowrap;
 	margin-top: 2px;
 }
+
+.library-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 10px;
+}
+.library-actions button {
+	font-size: 11px;
+	padding: 5px 8px;
+}
+dialog {
+	max-width: min(800px, 90vw);
+	max-height: 80vh;
+	overflow: auto;
+	border: 1px solid #d9dce2;
+	border-radius: 12px;
+	padding: 24px;
+}
+dialog pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}

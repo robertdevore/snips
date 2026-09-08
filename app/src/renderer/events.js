@@ -6,6 +6,10 @@ import { groupNameFromFilename, importCsvFiles } from './import.js';
 import { renderStatsCharts } from './charts.js';
 import {
 	set_modal_visible,
+	mayDiscard,
+	isDirty,
+	markSaved,
+	selectSnippet,
 	show_view,
 	updateToggleIcons,
 	renderGroups,
@@ -74,6 +78,211 @@ async function deleteGroupWithConfirm(group) {
 }
 
 function wireEvents() {
+	window.addEventListener('beforeunload', (event) => {
+		if (isDirty()) {
+			event.preventDefault();
+			event.returnValue = false;
+		}
+	});
+	document.addEventListener('input', () => {
+		document.title = isDirty() ? 'Snips • Unsaved' : 'Snips';
+	});
+	window.snipsApi.onDataChanged?.(async () => {
+		if (isDirty()) {
+			showToast(
+				'Library changed outside this editor. Your draft is preserved; saving checks for conflicts.',
+				'warning',
+				6000
+			);
+			return;
+		}
+		await loadGroups();
+		await loadSnippets();
+		if (state.selectedSnippetId) await selectSnippet(state.selectedSnippetId);
+	});
+	const actions = document.createElement('div');
+	actions.className = 'library-actions';
+	for (const [label, handler] of [
+		[
+			'Trash selected',
+			async () => {
+				if (!mayDiscard() || !state.bulkIds?.size) return;
+				if (!window.confirm(`Move ${state.bulkIds.size} snippets to Trash?`)) return;
+				const operations = state.snippets
+					.filter((s) => state.bulkIds.has(s.id))
+					.map((s) => ({ type: 'trash', id: s.id, ifRevision: s.revision }));
+				try {
+					await window.snipsApi.batch(operations);
+					state.bulkIds.clear();
+					clearEditor();
+					await loadSnippets();
+				} catch {
+					showToast('Bulk action conflicted. Reload the library before retrying.', 'error');
+				}
+			}
+		],
+		[
+			'Favorite selected',
+			async () => {
+				if (!state.bulkIds?.size) return;
+				const operations = state.snippets
+					.filter((s) => state.bulkIds.has(s.id))
+					.map((s) => ({ type: 'favorite', id: s.id, ifRevision: s.revision, favorite: true }));
+				try {
+					await window.snipsApi.batch(operations);
+					state.bulkIds.clear();
+					await loadSnippets();
+				} catch {
+					showToast('Bulk action conflicted. Reload the library before retrying.', 'error');
+				}
+			}
+		],
+		[
+			'Trash',
+			async () => {
+				if (!mayDiscard()) return;
+				const rows = await window.snipsApi.listTrash();
+				const dialog = document.createElement('dialog');
+				const title = document.createElement('h2');
+				title.textContent = 'Trash';
+				dialog.append(title);
+				for (const row of rows) {
+					const line = document.createElement('p');
+					line.textContent = row.abbreviation + ' — ' + row.name + ' ';
+					const restore = document.createElement('button');
+					restore.textContent = 'Restore';
+					restore.onclick = async () => {
+						try {
+							await window.snipsApi.restoreSnippet(row.id);
+							line.remove();
+							await loadSnippets();
+						} catch {
+							showToast(
+								'Cannot restore: abbreviation is in use. Change the active snippet first.',
+								'error'
+							);
+						}
+					};
+					const purge = document.createElement('button');
+					purge.textContent = 'Delete permanently';
+					purge.onclick = async () => {
+						if (
+							!window.confirm(
+								'Permanently delete this snippet and its revision history? This cannot be undone.'
+							)
+						)
+							return;
+						await window.snipsApi.purgeSnippet(row.id);
+						line.remove();
+					};
+					line.append(purge);
+					line.append(restore);
+					dialog.append(line);
+				}
+				const close = document.createElement('button');
+				close.textContent = 'Close';
+				close.onclick = () => dialog.close();
+				dialog.append(close);
+				dialog.onclose = () => dialog.remove();
+				document.body.append(dialog);
+				dialog.showModal();
+			}
+		],
+		[
+			'History',
+			async () => {
+				if (!state.selectedSnippetId) return;
+				const rows = await window.snipsApi.history(state.selectedSnippetId);
+				const dialog = document.createElement('dialog');
+				for (const row of rows) {
+					const item = document.createElement('details');
+					const title = document.createElement('summary');
+					title.textContent =
+						new Date(row.timestamp).toLocaleString() + ' ' + row.source + ' ' + row.operation;
+					item.append(title);
+					const pre = document.createElement('pre');
+					pre.textContent = 'Expand to load this revision.';
+					item.ontoggle = async () => {
+						if (!item.open) return;
+						const detail = await window.snipsApi.historyDetail(state.selectedSnippetId, row.id);
+						pre.textContent = JSON.stringify(
+							{
+								before: detail.beforeState ? JSON.parse(detail.beforeState) : null,
+								after: detail.afterState ? JSON.parse(detail.afterState) : null
+							},
+							null,
+							2
+						);
+					};
+					item.append(pre);
+					if (row.hasBefore) {
+						const revert = document.createElement('button');
+						revert.textContent = 'Revert this change';
+						revert.onclick = async () => {
+							if (
+								!mayDiscard() ||
+								!window.confirm('Restore this previous state? The current state remains in history.')
+							)
+								return;
+							try {
+								await window.snipsApi.revert({
+									id: state.selectedSnippetId,
+									historyId: row.id,
+									ifRevision: state.revision
+								});
+								state.lastSavedSnapshot = null;
+								await selectSnippet(state.selectedSnippetId);
+								dialog.close();
+							} catch {
+								showToast('Revert conflicted with another change. Reload first.', 'error');
+							}
+						};
+						item.append(revert);
+					}
+					dialog.append(item);
+				}
+				const close = document.createElement('button');
+				close.textContent = 'Close';
+				close.onclick = () => dialog.close();
+				dialog.append(close);
+				dialog.onclose = () => dialog.remove();
+				document.body.append(dialog);
+				dialog.showModal();
+			}
+		],
+		[
+			'Install / Repair CLI',
+			async () => {
+				try {
+					const result = await window.snipsApi.installCli();
+					showToast(result.message, 'success', 8000);
+				} catch (e) {
+					showToast(e.message, 'error', 8000);
+				}
+			}
+		],
+		[
+			'Upgrade helper',
+			async () => {
+				if (
+					!window.confirm(
+						'Install the packaged helper update? macOS may require you to re-enable Accessibility and Input Monitoring.'
+					)
+				)
+					return;
+				const result = await window.snipsApi.upgradeHelper();
+				showToast(result.message, 'warning', 8000);
+				await loadHelperStatus();
+			}
+		]
+	]) {
+		const button = document.createElement('button');
+		button.textContent = label;
+		button.onclick = handler;
+		actions.append(button);
+	}
+	document.querySelector('.editor-wrap').prepend(actions);
+
 	const statusCard = document.getElementById('statusCard');
 	const chevron = document.getElementById('statusChevron');
 	const iconNewSnippet = document.getElementById('iconNewSnippet');
@@ -141,6 +350,8 @@ function wireEvents() {
 	if (openLibraryBtn) {
 		openLibraryBtn.onclick = async (e) => {
 			e.preventDefault();
+			if (!mayDiscard()) return;
+			state.lastSavedSnapshot = null;
 			state.selectedGroupId = '__all__';
 			state.selectedSnippetId = null;
 			show_view('libraryView');
@@ -512,21 +723,28 @@ function wireEvents() {
 	}
 	if (btns.newSnippet) {
 		btns.newSnippet.onclick = () => {
+			if (!mayDiscard()) return;
 			show_view('libraryView');
 			clearEditor();
 		};
 	}
 	if (btns.saveSnippet) {
 		btns.saveSnippet.onclick = async () => {
-			await window.snipsApi.saveSnippet(snippetFormToPayload());
-			state.lastSavedSnapshot = snippetFormToPayload();
+			const saved = await window.snipsApi.saveSnippet(snippetFormToPayload());
+			if (saved?.ok === false) {
+				showToast(saved.errors?.map((e) => e.message).join(' ') || 'Save failed', 'error', 6500);
+				return;
+			}
+			state.selectedSnippetId = saved.id;
+			state.revision = saved.revision;
+			markSaved();
 			await loadSnippets();
 			await notifyHelperHealth('Snippet saved.');
 		};
 	}
 	if (btns.deleteSnippet) {
 		btns.deleteSnippet.onclick = async () => {
-			if (!state.selectedSnippetId) return;
+			if (!state.selectedSnippetId || !mayDiscard()) return;
 			await window.snipsApi.deleteSnippet(state.selectedSnippetId);
 			clearEditor();
 			await loadSnippets();
@@ -689,6 +907,21 @@ export async function boot() {
 	});
 	// In-app keyboard shortcuts
 	document.addEventListener('keydown', (e) => {
+		if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+			e.preventDefault();
+			show_view('settingsView');
+			loadSettings();
+		}
+		if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+			e.preventDefault();
+			if (mayDiscard()) {
+				state.selectedSnippetId = null;
+				state.revision = undefined;
+				els.nameInput.value += ' copy';
+				els.abbrInput.value += 'copy';
+				state.lastSavedSnapshot = {};
+			}
+		}
 		const mod = e.metaKey || e.ctrlKey;
 		if (mod && 's' === e.key.toLowerCase()) {
 			e.preventDefault();

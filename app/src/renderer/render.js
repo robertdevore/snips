@@ -3,6 +3,18 @@ import { ICONS } from './icons.js';
 import { showToast } from './toast.js';
 import { formatDurationMs, renderStatsCharts } from './charts.js';
 
+export function isDirty() {
+	if (!state.lastSavedSnapshot) return false;
+	return JSON.stringify(snippetFormToPayload()) !== JSON.stringify(state.lastSavedSnapshot);
+}
+export function mayDiscard() {
+	return !isDirty() || window.confirm('Discard unsaved snippet edits?');
+}
+export function markSaved() {
+	state.lastSavedSnapshot = snippetFormToPayload();
+	document.title = 'Snips';
+}
+
 // --- View helpers ---
 
 export function set_modal_visible(modalEl, visible) {
@@ -93,6 +105,8 @@ export function renderGroups() {
 		const nameEl = row.querySelector('.group-name');
 		if (nameEl) nameEl.textContent = group.name;
 		row.onclick = async () => {
+			if (!mayDiscard()) return;
+			state.lastSavedSnapshot = null;
 			state.selectedGroupId = group.id;
 			state.selectedSnippetId = null;
 			show_view('libraryView');
@@ -167,6 +181,22 @@ export function renderSnippets() {
 		if (strong) strong.textContent = snippet.name || '';
 		const abbr = item.querySelector('.snippet-abbr');
 		if (abbr) abbr.textContent = snippet.abbreviation || '';
+		item.tabIndex = 0;
+		item.setAttribute('role', 'option');
+		item.onkeydown = (e) => {
+			if (e.key === 'Enter') selectSnippet(snippet.id);
+		};
+		const checkbox = document.createElement('input');
+		checkbox.type = 'checkbox';
+		checkbox.setAttribute('aria-label', 'Select ' + snippet.name);
+		checkbox.checked = state.bulkIds?.has(snippet.id) || false;
+		checkbox.onclick = (e) => e.stopPropagation();
+		checkbox.onchange = () => {
+			state.bulkIds ??= new Set();
+			if (checkbox.checked) state.bulkIds.add(snippet.id);
+			else state.bulkIds.delete(snippet.id);
+		};
+		item.prepend(checkbox);
 		item.onclick = () => selectSnippet(snippet.id);
 		const copyBtn = item.querySelector('button[data-action="copy"]');
 		if (copyBtn) {
@@ -196,9 +226,15 @@ export function renderSnippets() {
 }
 
 export async function selectSnippet(id) {
+	if (id !== state.selectedSnippetId && !mayDiscard()) return;
 	state.selectedSnippetId = id;
 	const snippet = await window.snipsApi.getSnippet(id);
-	if (!snippet || state.selectedSnippetId !== id) return;
+	if (state.selectedSnippetId !== id) return;
+	if (!snippet) {
+		clearEditor();
+		return;
+	}
+	state.revision = snippet.revision;
 	els.nameInput.value = snippet.name || '';
 	els.abbrInput.value = snippet.abbreviation || '';
 	els.groupSelect.value = snippet.groupId || 'default';
@@ -209,11 +245,12 @@ export async function selectSnippet(id) {
 	els.contentInput.value = snippet.content || '';
 	els.tagsInput.value = (snippet.tags || []).join(', ');
 	els.notesInput.value = snippet.notes || '';
-	state.lastSavedSnapshot = snippetFormToPayload();
+	markSaved();
 	renderSnippets();
 }
 
 export function clearEditor() {
+	state.revision = undefined;
 	state.selectedSnippetId = null;
 	els.nameInput.value = '';
 	els.abbrInput.value = '';
@@ -225,6 +262,7 @@ export function clearEditor() {
 	els.contentInput.value = '';
 	els.tagsInput.value = '';
 	els.notesInput.value = '';
+	markSaved();
 	renderSnippets();
 }
 
@@ -274,7 +312,9 @@ export async function loadSnippets() {
 		state.snippets = await window.snipsApi.listSnippets({
 			query: els.searchInput.value,
 			groupId: '__all__' === state.selectedGroupId ? null : state.selectedGroupId,
-			sort
+			sort,
+			limit: 500,
+			metadata: true
 		});
 		renderSnippets();
 		renderGroups();
@@ -320,7 +360,10 @@ function applyUserCardFromSettings() {
 	const name = (state.settings.userName || 'Local').trim() || 'Local';
 	if (extra.sidebarAvatarEl) {
 		if (avatar && 0 === avatar.indexOf('data:image/')) {
-			extra.sidebarAvatarEl.innerHTML = `<img src="${avatar}" alt="" />`;
+			const image = document.createElement('img');
+			image.src = avatar;
+			image.alt = '';
+			extra.sidebarAvatarEl.replaceChildren(image);
 		} else {
 			extra.sidebarAvatarEl.textContent = avatar || '\u{1F464}';
 		}
@@ -332,7 +375,10 @@ function applyAvatarPreviewFromSettings() {
 	if (!extra.settingAvatarPreviewEl) return;
 	const avatar = (extra.pendingAvatarDataUrl || state.settings.userAvatar || '').trim();
 	if (avatar && 0 === avatar.indexOf('data:image/')) {
-		extra.settingAvatarPreviewEl.innerHTML = `<img src="${avatar}" alt="" />`;
+		const image = document.createElement('img');
+		image.src = avatar;
+		image.alt = '';
+		extra.settingAvatarPreviewEl.replaceChildren(image);
 		return;
 	}
 	extra.settingAvatarPreviewEl.textContent = '\u{1F464}';
@@ -447,7 +493,13 @@ export function applyHelperStatus(status) {
 	const input = status.listenEventAccess ? 'Input Monitoring granted' : 'Input Monitoring missing';
 	const tap = status.eventTapActive ? 'Event tap active' : 'Event tap inactive';
 	const running = status.running ? 'Helper online' : 'Helper offline';
-	els.helperStatus.textContent = `${running} \u2022 ${access} \u2022 ${input} \u2022 ${tap} \u2022 ${secure}`;
+	const issues = [
+		...(status.hotkeyFailures || []),
+		...(status.lastError ? [status.lastError] : []),
+		...(status.upgradeRequired ? ['Helper update required — use Upgrade helper'] : [])
+	];
+	els.helperStatus.textContent =
+		issues.join(' • ') + ' ' + `${running} \u2022 ${access} \u2022 ${input} \u2022 ${tap} \u2022 ${secure}`;
 	if (extra.helperPathEl) {
 		extra.helperPathEl.textContent = status.helperExecutable ? `Helper: ${status.helperExecutable}` : '';
 	}
@@ -486,6 +538,7 @@ export async function notifyHelperHealth(prefix) {
 export function snippetFormToPayload() {
 	return {
 		id: state.selectedSnippetId,
+		ifRevision: state.revision,
 		name: els.nameInput.value,
 		abbreviation: els.abbrInput.value,
 		groupId: els.groupSelect.value,
