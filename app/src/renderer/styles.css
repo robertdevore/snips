@@ -1397,3 +1397,18 @@ dialog pre {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 }
+.library-actions button {
+	width: auto;
+	flex: 0 0 auto;
+}
+.snippet-item {
+	display: grid;
+	grid-template-columns: 18px minmax(0, 1fr);
+	gap: 6px;
+	align-items: center;
+}
+.snippet-item > input[type='checkbox'] {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+}

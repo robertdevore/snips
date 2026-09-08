@@ -10,9 +10,15 @@ export function isDirty() {
 export function mayDiscard() {
 	return !isDirty() || window.confirm('Discard unsaved snippet edits?');
 }
+export function updateDirtyIndicator() {
+	const dirty = isDirty();
+	document.title = dirty ? 'Snips • Unsaved' : 'Snips';
+	const title = document.getElementById('editorTitle');
+	if (title) title.textContent = dirty ? 'Snippet Editor • Unsaved' : 'Snippet Editor';
+}
 export function markSaved() {
 	state.lastSavedSnapshot = snippetFormToPayload();
-	document.title = 'Snips';
+	updateDirtyIndicator();
 }
 
 // --- View helpers ---

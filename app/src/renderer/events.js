@@ -9,6 +9,7 @@ import {
 	mayDiscard,
 	isDirty,
 	markSaved,
+	updateDirtyIndicator,
 	selectSnippet,
 	show_view,
 	updateToggleIcons,
@@ -85,7 +86,7 @@ function wireEvents() {
 		}
 	});
 	document.addEventListener('input', () => {
-		document.title = isDirty() ? 'Snips • Unsaved' : 'Snips';
+		updateDirtyIndicator();
 	});
 	window.snipsApi.onDataChanged?.(async () => {
 		if (isDirty()) {
@@ -542,12 +543,14 @@ function wireEvents() {
 		enabledToggle.onclick = () => {
 			els.enabledInput.checked = !els.enabledInput.checked;
 			updateToggleIcons();
+			updateDirtyIndicator();
 		};
 	}
 	if (favoriteToggle) {
 		favoriteToggle.onclick = () => {
 			els.favoriteInput.checked = !els.favoriteInput.checked;
 			updateToggleIcons();
+			updateDirtyIndicator();
 		};
 	}
 
@@ -799,6 +802,7 @@ function wireEvents() {
 			const start = els.contentInput.selectionStart;
 			const end = els.contentInput.selectionEnd;
 			els.contentInput.value = els.contentInput.value.slice(0, start) + macro + els.contentInput.value.slice(end);
+			updateDirtyIndicator();
 		};
 	});
 
