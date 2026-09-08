@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED. This document describes an earlier repository state. Start at ../../AGENTS.md.
+
 # Snips AI and CLI Readiness
 
 ## Current AI/CLI Status

@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED. This document describes an earlier repository state. Start at ../../AGENTS.md.
+
 # Snips Repo Audit
 
 ## Executive Summary

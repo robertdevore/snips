@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED. This document describes an earlier repository state. Start at ../../AGENTS.md.
+
 # Expansion latency verification — September 8, 2026
 
 Base: `4980d01` (origin/main at task start). macOS 26 / Darwin 25.6.0,

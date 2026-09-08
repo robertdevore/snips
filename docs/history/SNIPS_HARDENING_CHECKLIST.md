@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED. This document describes an earlier repository state. Start at ../../AGENTS.md.
+
 # Snips Hardening Checklist
 
 > Each task is independently reviewable and small enough for a single focused pass.

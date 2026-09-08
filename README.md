@@ -23,7 +23,7 @@ Snips is not notarized yet. If Gatekeeper blocks the first launch, allow it from
 2. Type the abbreviation in any app.
 3. Open the search palette with `Cmd+Shift+Space`.
 
-Snips supports groups, tags, favorites, fill fields, dates, clipboard insertion, cursor markers, per-app exclusions, secure-input detection, and usage statistics.
+The 0.5.0 development checkout adds authenticated helper IPC, transactional history/Trash, revision-checked agent writes, ranked search and an installed CLI. Published 0.4.0 installers do not include these changes. See [current agent guide](AGENTS.md) and [release gates](docs/RECOVERY.md).
 
 ## CLI and Strata
 
@@ -41,13 +41,15 @@ snips doctor --json
 Exchange reusable text with a running [Strata](https://github.com/robertdevore/strata) instance:
 
 ```bash
-snips strata save-snippet <snippet-id>
+snips strata save-snippet <snippet-id> --confirm
 snips strata search-candidates "deployment checklist"
 snips strata import-note <note-id> --dry-run
 snips strata import-note <note-id> --confirm
 ```
 
-The bridge uses `http://127.0.0.1:3939` by default. Override it with `STRATA_URL` or `--strata-url`; authenticated Strata instances read `STRATA_API_TOKEN`. See [CLI usage](docs/CLI_USAGE.md) for the full command reference.
+Install the bundled CLI with **Install / Repair CLI** in the library toolbar (`~/.local/bin/snips`).
+
+The bridge uses `http://127.0.0.1:3939` by default. Override its loopback port with `STRATA_URL` or `--strata-url` (remote URLs are rejected); authenticated Strata instances read `STRATA_API_TOKEN`. See [CLI usage](docs/CLI_USAGE.md) for the full command reference.
 
 ## Develop
 
@@ -62,10 +64,10 @@ npm run dev
 Useful checks:
 
 ```bash
-npm run lint
-npm run format:check
-npm test --workspace app
-npm run helper:build
+npm run verify
+npm run test:e2e
+npm run benchmark
+npm run package:verify
 ```
 
 Build release installers with `npm run package:dmg`. Artifacts are written to `app/dist/`.
@@ -74,7 +76,7 @@ Build release installers with `npm run package:dmg`. Artifacts are written to `a
 
 The database normally lives at `~/Library/Application Support/Snips/data/snips.db`. Snips stays local unless you explicitly invoke the Strata bridge.
 
-The helper needs Accessibility and Input Monitoring permissions. If expansion stops after an update, quit Snips, run `pkill -f SnipsHelper`, reopen Snips, and use **Status → Restart Helper**.
+The helper needs Accessibility and Input Monitoring permissions. If Status reports an outdated helper, use **Upgrade helper**, re-enable permissions if macOS requests it, then **Restart Helper**.
 
 ## Architecture
 
@@ -82,4 +84,4 @@ The helper needs Accessibility and Input Monitoring permissions. If expansion st
 - `helper/`: Swift key-capture and text-insertion helper
 - `shared/`: app/helper contracts
 
-See [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), and the [changelog](CHANGELOG.md) for more detail.
+See [security](docs/SECURITY.md), [contributing](docs/CONTRIBUTING.md), and the [changelog](CHANGELOG.md) for more detail.

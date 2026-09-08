@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — unreleased
+
+- Authenticate and bound both helper IPC directions; version the protocol and detect obsolete helpers.
+- Schedule expansion outside the event tap, clean up asynchronous fills, preserve cancellation text,
+  protect injection from recursion and add grapheme-based cursor placement with documented limits.
+- Add deliberate helper bundle upgrades, actionable permission/shortcut status and safe live-window broadcasts.
+- Add atomic schema migration, reusable abbreviations after Trash, restore/purge, revision checks and local history.
+- Add ranked FTS5 search, bounded SQL metadata, installed CLI, strict explicit flags, multiline/structured input,
+  transactional batches, dry-run validation, explicit retry keys and compact capability discovery.
+- Preserve dirty GUI drafts, show save failures, add Trash/history and bulk favorite/trash controls.
+- Reject import collisions, preserve legacy WAL data, constrain Strata endpoints and renderer IPC senders.
+- Add consolidated verification/CI, native package smoke checks, signing/notarization support and benchmarks.
+- Archive historical audits; AGENTS.md is the canonical current entry point.
+- Release remains gated on permission-enabled cross-application typing and signed TCC upgrade validation.
+
+
 ## 0.4.0 - 2026-08-11
 
 ### Added

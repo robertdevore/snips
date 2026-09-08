@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED. This document describes an earlier repository state. Start at ../../AGENTS.md.
+
 # Snips v0.2.0: From Prototype to Production-Ready macOS Snippet Expander
 
 > _A technical deep-dive into the architecture overhaul, security hardening, and UX polish that took Snips from a working prototype to a maintainable, production-grade macOS application._

@@ -1,237 +1,107 @@
-# Snips CLI Usage
+# CLI — 0.5.0
 
-The Snips CLI manages the local snippet library from a terminal. It is useful for backups, scripted updates, automation, and AI-agent workflows. It uses the same database service layer as the desktop app; it does not require Electron to be running.
+Choose **Install / Repair CLI** in Snips. The managed launcher is `~/.local/bin/snips`.
+It uses the app's bundled runtime and SQLite binding. Add `~/.local/bin` to PATH if necessary;
+Snips never edits shell profiles or replaces an unrelated executable. Moving the app requires Repair.
+Source use: `node app/cli/index.js`. `SNIPS_DATA_DIR` selects an existing initialized data directory.
 
-## Requirements
-
-- macOS with Node.js and npm installed
-- Snips installed once, or a source checkout with dependencies installed
-- Access to the Snips data directory
-
-The production database is normally stored at:
-
-```text
-~/Library/Application Support/Snips/data/snips.db
+```sh
+snips capabilities --json
+snips list --json --limit 50 --offset 0
+snips search 'cloudflare deployment' --json --limit 5 --fields id,name,abbreviation,revision,preview
+snips list --tag work --group default --favorite --json
+snips list --count --json
+snips list --trash --json
+snips get snippet_id --json
+snips groups --json
 ```
 
-The CLI exits with code `1` when an operation fails and `2` for invalid or incomplete command usage.
+Search uses ranked FTS Unicode word prefixes, not arbitrary substring matching. Default output
+contains metadata and a 120-character preview, never full bodies. Use `get` or `--include-content`.
+`--fields` selects explicit fields; `--ids-only` returns IDs. `--limit` is 1–500, default 50;
+`--offset` is a zero-based offset in deterministic order. Pagination is not a snapshot across edits.
+`--count` returns total filtered matches. JSON is compact; `--pretty` opts into indentation.
+`--quiet` suppresses successful output. Errors remain visible and exit nonzero.
+Only `-h` (help) and `-j` (JSON) are supported aliases. Duplicate/unknown flags are errors.
 
-## Starting the CLI
-
-For a source checkout, run commands from the repository root:
-
-```bash
-node app/cli/index.js help
+```sh
+printf 'Hello\nworld\n' | snips create --name Greeting --abbr ';hello' --content-stdin --json
+snips create --name Template --abbr ';template' --content-file ./template.txt --dry-run --json
+cat snippet.json | snips create --stdin-json --idempotency-key task-42-create --json
+cat body.txt | snips update snippet_id --content-stdin --if-revision 14 --dry-run --json
+cat body.txt | snips update snippet_id --content-stdin --if-revision 14 --confirm --json
+snips trash snippet_id --if-revision 15 --confirm --json
+snips restore snippet_id --confirm --json
+snips purge snippet_id --confirm --json
+snips history snippet_id --json
+snips history snippet_id --history-id 42 --json
+snips revert snippet_id --history-id 42 --if-revision 16 --confirm --json
 ```
 
-The repository also provides an npm wrapper:
+A structured snippet accepts `name`, `abbreviation`, `content`, `groupId`, `tags`, `enabled`,
+`favorite`, `notes`, `triggerMode`, and `caseMode` (only `exact`). IDs are explicit optional
+identifiers on create, never an implicit upsert. Trigger modes: immediate, whitespace, enterTab,
+wordBoundary. Macros: `[[date:iso]]`, `[[date:short]]`, Swift date formats, `[[clipboard]]`,
+`[[fill:Label|default]]`, and one `[[cursor]]`. See the architecture's caret limitations.
 
-```bash
-npm run cli -- list
-npm run cli -- search "refund" --json
+Input is bounded to 8 MiB; content to 1 MiB UTF-8; name/abbreviation to 200 characters;
+notes to 10,000; tags to 50 × 64 characters. `capabilities` exposes these limits. The helper uses the same UTF-8 content bound.
+A dry-run executes the same transaction and rolls it back, validating collisions and revisions.
+A preview does not reserve an abbreviation or revision. Re-submit the same content to commit.
+
+All mutations except create require `--confirm` or `--dry-run`. Permanent deletion removes
+local revision history too. Restore collisions are errors; edit the conflicting active snippet first.
+History retains the latest 100 mutations per snippet. History lists are metadata; use `--history-id` to fetch one full before/after record. Explicit retry keys return the original result
+for the same request, reject different requests, and are cleared by permanent purge. They are not
+an authorization mechanism. Prefer revision checks even when using a retry key.
+
+## Batch
+
+```sh
+snips batch --stdin-jsonl --dry-run --json < operations.jsonl
+snips batch --stdin-jsonl --confirm --idempotency-key task-42 --json < operations.jsonl
 ```
 
-If the `snips` executable is installed on your `PATH`, the same commands can be written as:
+Each line is an operation; `--stdin-json` accepts one array instead. At most 500 operations.
+Supported shapes:
 
-```bash
-snips list
-snips search "refund" --json
+```json
+{"type":"create","snippet":{"name":"Reply","abbreviation":";reply","content":"Thanks","groupId":"default"}}
+{"type":"update","id":"snippet_id","ifRevision":1,"patch":{"content":"Thank you"}}
+{"type":"move","id":"snippet_id","groupId":"default"}
+{"type":"tag","id":"snippet_id","tags":["work"]}
+{"type":"enable","id":"snippet_id","enabled":false}
+{"type":"favorite","id":"snippet_id","favorite":true}
+{"type":"trash","id":"snippet_id","ifRevision":2}
+{"type":"restore","id":"snippet_id"}
 ```
 
-Use `--help` with any command. `--json` produces machine-readable output and is recommended for scripts.
+All operations commit together or all roll back. Results correspond to input order. A failure
+returns `{"ok":false,"error":{"code":"REVISION_CONFLICT","message":"REVISION_CONFLICT"}}`
+(or another named error). Exit codes are 0 success, 1 operation failure, 2 usage/confirmation error.
 
-## Read snippets
+## Backup, diagnostics, Strata
 
-List snippets. Human-readable output includes the abbreviation, name, and ID:
-
-```bash
-snips list
-snips list --json
-```
-
-Search by name, abbreviation, or content:
-
-```bash
-snips search "refund"
-snips search ";addr" --json
-```
-
-Fetch one complete snippet. The ID is shown by `list` and `search`:
-
-```bash
-snips get <snippet-id>
-snips get <snippet-id> --json
-```
-
-## Create snippets
-
-Create requires a name, abbreviation, and content. Abbreviations cannot contain spaces. The default group is `General`.
-
-```bash
-snips create \
-  --name "Support address" \
-  --abbr ";addr" \
-  --content "123 Main Street, Detroit, MI"
-```
-
-Set a group and comma-separated tags:
-
-```bash
-snips create \
-  --name "Refund reply" \
-  --abbr ";refund" \
-  --content "Thanks for reaching out. We have started your refund." \
-  --group "Support" \
-  --tags "support,refund"
-```
-
-Preview validation without writing to the database:
-
-```bash
-snips create \
-  --name "Daily standup" \
-  --abbr ";standup" \
-  --content "Yesterday: [[fill:Yesterday|]]\nToday: [[fill:Today|]]\nBlockers: [[fill:Blockers|None]]" \
-  --dry-run --json
-```
-
-Snippet content supports the same macros as the app, including `[[date:iso]]`, `[[clipboard]]`, `[[fill:Label|default]]`, and `[[cursor]]`.
-
-## Update snippets
-
-Updates are protected by an explicit confirmation flag. Preview first, then apply:
-
-```bash
-snips update <snippet-id> --content "Updated text" --dry-run --json
-snips update <snippet-id> --content "Updated text" --confirm
-```
-
-You can update one or more of these fields:
-
-```bash
-snips update <snippet-id> --name "New name" --confirm
-snips update <snippet-id> --abbr ";new-abbr" --confirm
-snips update <snippet-id> --name "New name" --abbr ";new" --content "New content" --confirm
-```
-
-The CLI update command preserves the snippet's group, tags, enabled state, favorite state, trigger mode, case mode, and notes. Change those fields in the desktop app.
-
-## Back up and restore
-
-Export the complete library, including groups and snippets:
-
-```bash
-snips export --out ./snips-backup.json
-```
-
-Without `--out`, export writes JSON to standard output:
-
-```bash
-snips export > ./snips-backup.json
-```
-
-Preview an import before changing the database:
-
-```bash
-snips import --in ./snips-backup.json --dry-run --json
-```
-
-Apply an import only with `--confirm`:
-
-```bash
-snips import --in ./snips-backup.json --confirm --json
-```
-
-Import expects the JSON format produced by `snips export`. Invalid snippets are skipped and reported in the result. Existing records with matching IDs are updated by the database layer.
-
-## Diagnostics
-
-Check the database path, snippet count, group count, and expansion event count:
-
-```bash
-snips health
-snips health --json
-```
-
-Show current settings. Avatar data is intentionally omitted:
-
-```bash
-snips show
-snips show --json
-```
-
-Run configuration checks:
-
-```bash
-snips doctor
+```sh
+snips export --out ./backup.json
+snips import --in ./backup.json --dry-run --json
+snips import --in ./backup.json --confirm --json
 snips doctor --json
+snips health --json
+snips strata save-snippet snippet_id --dry-run --json
+snips strata save-snippet snippet_id --confirm --json
+snips strata search-candidates 'deployment checklist' --json
+snips strata import-note note_id --dry-run --json
+snips strata import-note note_id --confirm --json
 ```
 
-`doctor` checks the WPM range, palette hotkey, and whether the library is empty. It does not test macOS Accessibility or Input Monitoring permissions; use the Snips Status panel for helper permissions.
+Export refuses to replace an existing file unless `--confirm` is supplied.
 
-## Strata bridge
+Imports are atomic and reject existing snippet IDs/abbreviations; they do not merge or overwrite.
+JSON imports are limited to 500 snippets per invocation. CSV import in the GUI also rejects
+collisions instead of replacing existing text. Export is a version 1 data backup, not revision history.
 
-With Strata running locally, Snips can deliberately exchange selected content through its HTTP API:
-
-```bash
-snips strata save-snippet <snippet-id>
-snips strata search-candidates "query"
-snips strata import-note <note-id> --dry-run
-snips strata import-note <note-id> --confirm
-```
-
-The default base URL is `http://127.0.0.1:3939`. Set `STRATA_URL` or pass `--strata-url`; set `STRATA_API_TOKEN` when Strata authentication is enabled. Imports require a preview or explicit confirmation.
-
-## Isolated or test database
-
-Set `SNIPS_DATA_DIR` to point the CLI at another data directory. This is useful for tests and safe previews:
-
-```bash
-SNIPS_DATA_DIR=/tmp/snips-cli-test/data node app/cli/index.js health --json
-SNIPS_DATA_DIR=/tmp/snips-cli-test/data node app/cli/index.js create \
-  --name "Test" --abbr ";test" --content "Hello" --dry-run --json
-```
-
-Do not point this variable at a shared or production database while another process is writing to it.
-
-## Automation pattern
-
-Use `--json`, check the exit status, and keep errors from stderr separate from successful output:
-
-```bash
-set -euo pipefail
-
-snippet_id="$(snips create \
-  --name "Build status" \
-  --abbr ";build" \
-  --content "Build complete" \
-  --json | node -e '
-    let input = "";
-    process.stdin.on("data", chunk => input += chunk);
-    process.stdin.on("end", () => process.stdout.write(JSON.parse(input).snippet.id));
-  ')"
-
-snips get "$snippet_id" --json
-```
-
-For destructive or bulk changes, always run the corresponding `--dry-run` command first and require `--confirm` in the write step.
-
-## Command reference
-
-| Command              | Purpose                                        | Write operation                  | Confirmation                   |
-| -------------------- | ---------------------------------------------- | -------------------------------- | ------------------------------ |
-| `list`               | List all snippets                              | No                               | —                              |
-| `search <query>`     | Search snippet name, abbreviation, and content | No                               | —                              |
-| `get <id>`           | Show one snippet                               | No                               | —                              |
-| `create`             | Create a snippet                               | Yes                              | No; use `--dry-run` to preview |
-| `update <id>`        | Update name, abbreviation, or content          | Yes                              | `--confirm` required           |
-| `export`             | Export groups and snippets                     | Writes only when `--out` is used | —                              |
-| `import --in <path>` | Import groups and snippets                     | Yes                              | `--confirm` required           |
-| `health`             | Show database health and counts                | No                               | —                              |
-| `show`               | Show settings                                  | No                               | —                              |
-| `doctor`             | Check common configuration issues              | No                               | —                              |
-| `strata`             | Exchange selected content with local Strata    | Import/save only                 | Import requires `--confirm`    |
-
-## Privacy and safety
-
-The CLI normally reads and writes only the local SQLite database. The `strata` command is the sole opt-in bridge and sends only the selected snippet or query to the configured Strata URL. Treat exported JSON files as sensitive if they contain private templates, clipboard macros, customer data, or credentials.
+Strata is optional. Endpoints must be literal loopback HTTP addresses (`127.0.0.1` or `[::1]`),
+with redirects denied, a 5-second timeout and an 8 MiB response limit. `STRATA_API_TOKEN` is
+read from the environment. Neither token nor response bodies are logged. Custom remote URLs
+are intentionally rejected. No Strata dependency is required for core Snips behavior.
