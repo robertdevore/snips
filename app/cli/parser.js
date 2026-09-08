@@ -6,7 +6,7 @@ const schema = {
 	list: read,
 	search: read,
 	get: ['fields'],
-	create: [...write, ...content],
+	create: ['dry-run', 'confirm', 'idempotency-key', ...content],
 	update: [...write, ...content],
 	batch: ['dry-run', 'confirm', 'idempotency-key', 'stdin-json', 'stdin-jsonl'],
 	trash: write,

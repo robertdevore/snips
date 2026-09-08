@@ -639,6 +639,36 @@ function main() {
 				version: APP_VERSION,
 				protocolVersion: 1,
 				commands: require('./parser').schema,
+				globalFlags: ['json', 'pretty', 'quiet', 'help'],
+				snippetFields: {
+					id: 'string?',
+					name: 'string',
+					abbreviation: 'string',
+					content: 'string',
+					groupId: 'string=default',
+					tags: 'string[]?',
+					enabled: 'boolean=true',
+					favorite: 'boolean=false',
+					notes: 'string?',
+					triggerMode: 'enum=immediate',
+					caseMode: 'exact'
+				},
+				batchShapes: {
+					create: ['type', 'snippet'],
+					update: ['type', 'id', 'patch', 'ifRevision?'],
+					move: ['type', 'id', 'groupId', 'ifRevision?'],
+					tag: ['type', 'id', 'tags', 'ifRevision?'],
+					enable: ['type', 'id', 'enabled', 'ifRevision?'],
+					favorite: ['type', 'id', 'favorite', 'ifRevision?'],
+					trash: ['type', 'id', 'ifRevision?'],
+					restore: ['type', 'id', 'ifRevision?'],
+					revert: ['type', 'id', 'historyId', 'ifRevision?']
+				},
+				output: {
+					read: 'metadata by default; get includes content',
+					write: '{ok,results:[snippet]}',
+					error: '{ok:false,error:{code,message}}'
+				},
 				limits: LIMITS,
 				macros: ['date', 'clipboard', 'fill', 'cursor'],
 				caseModes: ['exact'],
