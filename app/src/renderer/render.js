@@ -122,6 +122,7 @@ export function renderGroups() {
 		}
 		els.groups.appendChild(row);
 	}
+	const selectedGroup = els.groupSelect.value;
 	els.groupSelect.replaceChildren(
 		...state.groups.map((group) => {
 			const option = document.createElement('option');
@@ -130,6 +131,7 @@ export function renderGroups() {
 			return option;
 		})
 	);
+	els.groupSelect.value = state.groups.some((group) => group.id === selectedGroup) ? selectedGroup : 'default';
 }
 
 // --- Snippets ---
@@ -196,7 +198,7 @@ export function renderSnippets() {
 export async function selectSnippet(id) {
 	state.selectedSnippetId = id;
 	const snippet = await window.snipsApi.getSnippet(id);
-	if (!snippet) return;
+	if (!snippet || state.selectedSnippetId !== id) return;
 	els.nameInput.value = snippet.name || '';
 	els.abbrInput.value = snippet.abbreviation || '';
 	els.groupSelect.value = snippet.groupId || 'default';

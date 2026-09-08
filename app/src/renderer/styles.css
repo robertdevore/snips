@@ -112,8 +112,34 @@ body {
 
 .app-shell {
 	display: grid;
-	grid-template-columns: 260px 1fr;
+	grid-template-columns: 260px minmax(0, 1fr);
 	height: 100vh;
+}
+
+.sidebar-toggle {
+	position: fixed;
+	top: 7px;
+	left: 220px;
+	width: 28px;
+	height: 28px;
+	z-index: 51;
+	-webkit-app-region: no-drag;
+}
+
+.app-shell.sidebar-collapsed {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.sidebar-collapsed .main-column {
+	padding-top: 46px;
+}
+
+.sidebar-collapsed .sidebar-toggle {
+	left: 88px;
+}
+
+.sidebar[hidden] {
+	display: none;
 }
 
 .sidebar {
@@ -797,6 +823,7 @@ body {
 }
 
 .main-column {
+	min-width: 0;
 	display: grid;
 	grid-template-rows: auto 1fr;
 	gap: 12px;
@@ -1069,7 +1096,7 @@ textarea,
 
 .content-grid {
 	display: grid;
-	grid-template-columns: 320px 1fr;
+	grid-template-columns: minmax(220px, 30%) minmax(0, 1fr);
 	gap: 12px;
 	min-height: 0;
 }
@@ -1077,6 +1104,7 @@ textarea,
 .snippet-list-wrap,
 .editor-wrap,
 .panel {
+	min-width: 0;
 	background: var(--panel);
 	border: 1px solid var(--border);
 	border-radius: 10px;
