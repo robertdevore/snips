@@ -33,12 +33,9 @@ export function set_modal_visible(modalEl, visible) {
 }
 
 export function show_view(viewId) {
-	const library = document.getElementById('libraryView');
-	const settings = document.getElementById('settingsView');
-	const stats = document.getElementById('statsView');
-	if (library) library.classList.toggle('is-hidden', 'libraryView' !== viewId);
-	if (settings) settings.classList.toggle('is-hidden', 'settingsView' !== viewId);
-	if (stats) stats.classList.toggle('is-hidden', 'statsView' !== viewId);
+	for (const id of ['libraryView', 'settingsView', 'statsView', 'statusView']) {
+		document.getElementById(id)?.classList.toggle('is-hidden', id !== viewId);
+	}
 }
 
 // --- Snippet counts ---
@@ -159,6 +156,9 @@ export function renderGroups() {
 export function renderSnippets() {
 	if (!els.snippetList) return;
 	els.snippetList.innerHTML = '';
+	const visibleIds = new Set(state.snippets.map((snippet) => snippet.id));
+	state.bulkIds = new Set([...(state.bulkIds || [])].filter((id) => visibleIds.has(id)));
+	updateBulkActions();
 
 	if (!state.snippets.length) {
 		const hasSearch = els.searchInput && String(els.searchInput.value || '').trim();
@@ -177,7 +177,7 @@ export function renderSnippets() {
 					<div class="snippet-name"><strong></strong></div>
 					<div class="snippet-abbr"></div>
 				</div>
-				<div class="snippet-actions" aria-hidden="true">
+				<div class="snippet-actions">
 					<button class="snippet-action" data-action="copy" title="Copy snippet" aria-label="Copy snippet">${ICONS.copy}</button>
 					<button class="snippet-action" data-action="delete" title="Delete snippet" aria-label="Delete snippet">${ICONS.trash}</button>
 				</div>
@@ -201,6 +201,7 @@ export function renderSnippets() {
 			state.bulkIds ??= new Set();
 			if (checkbox.checked) state.bulkIds.add(snippet.id);
 			else state.bulkIds.delete(snippet.id);
+			updateBulkActions();
 		};
 		item.prepend(checkbox);
 		item.onclick = () => selectSnippet(snippet.id);
@@ -558,4 +559,9 @@ export function snippetFormToPayload() {
 			.filter(Boolean),
 		notes: els.notesInput.value
 	};
+}
+
+function updateBulkActions() {
+	const actions = document.getElementById('bulkActions');
+	if (actions) actions.hidden = !state.bulkIds?.size;
 }

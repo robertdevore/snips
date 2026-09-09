@@ -128,6 +128,30 @@ app.whenReady().then(async () => {
         });
         assert.equal(protection,true);
 
+
+        win.show();
+        win.webContents.focus();
+        const controls = await run(async () => {
+            const toggle = document.getElementById('sidebarToggle');
+            const plus = document.getElementById('newGroupBtn');
+            const check = document.querySelector('.snippet-item input');
+            document.activeElement.blur();
+            const hiddenInitially = getComputedStyle(check).opacity === '0';
+            check.focus();
+            await new Promise(r => setTimeout(r, 200));
+            check.getAnimations().forEach(animation => animation.finish());
+            const keyboardVisible = check.matches(':focus') && getComputedStyle(check).opacity === '1';
+            check.click();
+            const bulkVisible = !document.getElementById('bulkActions').hidden;
+            check.click();
+            const bulkHidden = document.getElementById('bulkActions').hidden;
+            await document.getElementById('openStatusViewBtn').onclick();
+            const statusVisible = !document.getElementById('statusView').classList.contains('is-hidden');
+            const actions = [...document.querySelectorAll('#statusView button')].map(b => b.textContent);
+            document.getElementById('openLibraryBtn').click();
+            return {size: [toggle.offsetWidth, toggle.offsetHeight, plus.offsetWidth, plus.offsetHeight], hiddenInitially, keyboardVisible, bulkVisible, bulkHidden, statusVisible, recovery: actions.includes('Upgrade helper') && actions.includes('Install / Repair CLI')};
+        });
+        assert.deepEqual(controls, {size:[28,28,28,28],hiddenInitially:true,keyboardVisible:true,bulkVisible:true,bulkHidden:true,statusVisible:true,recovery:true});
 		for (const width of [1180, 900, 1500]) {
 			win.setContentSize(width, 800);
 			await win.webContents.executeJavaScript(`new Promise((resolve, reject) => {
@@ -140,13 +164,20 @@ app.whenReady().then(async () => {
 				const shell = document.querySelector('.app-shell');
 				const measure = () => ({
 					editor: editor.getBoundingClientRect().width,
+ top: editor.getBoundingClientRect().top,
+ listTop: document.querySelector(".snippet-list-wrap").getBoundingClientRect().top,
 					main: document.querySelector('.main-column').getBoundingClientRect().width
 				});
-				const expanded = measure();
+				const count = document.getElementById('snippetCountLabel');
+                count.textContent = 'Snippets (187)';
+                const range = document.createRange(); range.selectNodeContents(count);
+                const countLines = range.getClientRects().length;
+                const expanded = measure();
 				toggle.click();
 				await new Promise((r) => requestAnimationFrame(r));
 				const collapsed = measure();
 				const result = {
+					countLines,
 					expanded,
 					collapsed,
 					hidden: document.getElementById('sidebar').hidden,
@@ -160,7 +191,10 @@ app.whenReady().then(async () => {
 				toggle.click();
 				return result;
 			});
-			assert.equal(layout.hidden, true);
+			assert.equal(layout.countLines, 1);
+ assert.equal(layout.expanded.top, layout.collapsed.top);
+ assert.equal(layout.expanded.listTop, layout.collapsed.listTop);
+ assert.equal(layout.hidden, true);
 			assert.equal(layout.aria, 'false');
 			assert.equal(layout.reachable, true);
 			assert.equal(layout.fits, true);

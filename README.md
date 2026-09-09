@@ -47,7 +47,7 @@ snips strata import-note <note-id> --dry-run
 snips strata import-note <note-id> --confirm
 ```
 
-Install the bundled CLI with **Install / Repair CLI** in the library toolbar (`~/.local/bin/snips`).
+Install the bundled CLI with **Install / Repair CLI** on the Status screen (`~/.local/bin/snips`).
 
 The bridge uses `http://127.0.0.1:3939` by default. Override its loopback port with `STRATA_URL` or `--strata-url` (remote URLs are rejected); authenticated Strata instances read `STRATA_API_TOKEN`. See [CLI usage](docs/CLI_USAGE.md) for the full command reference.
 

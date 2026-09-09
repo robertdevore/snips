@@ -50,24 +50,6 @@
 					<div class="groups-scroll">
 						<div id="groups"></div>
 					</div>
-					<div class="section-title sidebar-section status-header" id="statusHeader">
-						<span>Status</span>
-						<span id="statusChevron" class="chevron" aria-hidden="true"></span>
-					</div>
-					<div id="statusCard" class="status-card collapsed">
-						<div id="statusBody" class="status-body">
-							<div id="helperStatus">Checking helper...</div>
-							<div id="helperPath" class="helper-path"></div>
-							<div id="statusActions" class="status-actions">
-								<button id="openA11yBtn">Open Accessibility Settings</button>
-								<button id="revealHelperBtn">Reveal SnipsHelper</button>
-								<button id="requestA11yBtn">Request Accessibility Prompt</button>
-								<button id="requestInputBtn">Request Input Monitoring Prompt</button>
-								<button id="copyHelperPathBtn">Copy Helper Path</button>
-								<button id="restartHelperBtn">Restart Helper</button>
-							</div>
-						</div>
-					</div>
 				</div>
 
 				<div class="sidebar-bottom">
@@ -82,6 +64,7 @@
 						<div class="user-actions">
 							<button id="openSettingsViewBtn">Settings</button>
 							<button id="openStatsViewBtn">Stats</button>
+							<button id="openStatusViewBtn">Status</button>
 						</div>
 					</div>
 				</div>
@@ -169,6 +152,23 @@
 					</section>
 				</section>
 
+				<section id="statusView" class="view is-hidden">
+					<div class="view-header"><h2>Status</h2></div>
+					<div id="statusCard" class="panel status-card">
+						<div id="statusBody" class="status-body">
+							<div id="helperStatus">Checking helper...</div>
+							<div id="helperPath" class="helper-path"></div>
+							<div id="statusActions" class="status-actions">
+								<button id="openA11yBtn">Open Accessibility Settings</button>
+								<button id="revealHelperBtn">Reveal SnipsHelper</button>
+								<button id="requestA11yBtn">Request Accessibility Prompt</button>
+								<button id="requestInputBtn">Request Input Monitoring Prompt</button>
+								<button id="copyHelperPathBtn">Copy Helper Path</button>
+								<button id="restartHelperBtn">Restart Helper</button>
+							</div>
+						</div>
+					</div>
+				</section>
 				<section id="settingsView" class="view is-hidden">
 					<div class="view-header">
 						<h2>Settings</h2>

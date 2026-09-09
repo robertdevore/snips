@@ -103,6 +103,10 @@ function wireEvents() {
 	});
 	const actions = document.createElement('div');
 	actions.className = 'library-actions';
+	const bulkActions = document.createElement('div');
+	bulkActions.id = 'bulkActions';
+	bulkActions.className = 'library-actions';
+	bulkActions.hidden = true;
 	for (const [label, handler] of [
 		[
 			'Trash selected',
@@ -280,12 +284,14 @@ function wireEvents() {
 		const button = document.createElement('button');
 		button.textContent = label;
 		button.onclick = handler;
-		actions.append(button);
+		if (label.endsWith(' selected')) bulkActions.append(button);
+		else if (label === 'Install / Repair CLI' || label === 'Upgrade helper')
+			document.getElementById('statusActions').append(button);
+		else actions.append(button);
 	}
+	document.querySelector('.snippet-list-wrap').insertBefore(bulkActions, document.getElementById('snippetList'));
 	document.querySelector('.editor-wrap').prepend(actions);
 
-	const statusCard = document.getElementById('statusCard');
-	const chevron = document.getElementById('statusChevron');
 	const iconNewSnippet = document.getElementById('iconNewSnippet');
 	const iconNewGroup = document.getElementById('iconNewGroup');
 	const saveIcon = document.getElementById('saveIcon');
@@ -346,7 +352,6 @@ function wireEvents() {
 		favoriteIcon.innerHTML = ICONS.favoriteOff;
 		favoriteIcon.style.color = 'var(--muted)';
 	}
-	if (chevron) chevron.innerHTML = ICONS.chevronClosed;
 
 	if (openLibraryBtn) {
 		openLibraryBtn.onclick = async (e) => {
@@ -580,14 +585,10 @@ function wireEvents() {
 			}
 		});
 
-	// Status card
-	const statusHeader = document.getElementById('statusHeader');
-	if (statusHeader) {
-		statusHeader.onclick = () => {
-			const collapsed = statusCard.classList.toggle('collapsed');
-			if (chevron) chevron.innerHTML = collapsed ? ICONS.chevronClosed : ICONS.chevronOpen;
-		};
-	}
+	document.getElementById('openStatusViewBtn').onclick = async () => {
+		show_view('statusView');
+		await loadHelperStatus();
+	};
 
 	// Status action buttons
 	const btns = {

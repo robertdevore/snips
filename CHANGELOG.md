@@ -2,6 +2,10 @@
 
 ## 0.5.0 — unreleased
 
+- Compact sidebar controls, preserve column positions when collapsing, and keep snippet counts on one line.
+- Move helper/CLI recovery to a dedicated Status screen; reveal selection checkboxes on hover/focus
+  and show bulk actions only with a selection.
+
 - Authenticate and bound both helper IPC directions; version the protocol and detect obsolete helpers.
 - Schedule expansion outside the event tap, clean up asynchronous fills, preserve cancellation text,
   protect injection from recursion and add grapheme-based cursor placement with documented limits.

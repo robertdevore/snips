@@ -22,7 +22,7 @@ History is local, retained for the latest 100 mutations per snippet. Purge delet
 
 ## Interfaces
 
-Install the bundled CLI using **Install / Repair CLI** in the library toolbar. It writes
+Install the bundled CLI using **Install / Repair CLI** on the Status screen. It writes
 `~/.local/bin/snips`; add that directory to PATH yourself if needed. No shell files are edited.
 Source equivalent: `npm run cli -- <command> ...` (requires an initialized database).
 

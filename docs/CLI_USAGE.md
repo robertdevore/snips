@@ -1,6 +1,6 @@
 # CLI — 0.5.0
 
-Choose **Install / Repair CLI** in Snips. The managed launcher is `~/.local/bin/snips`.
+Choose **Status → Install / Repair CLI** in Snips. The managed launcher is `~/.local/bin/snips`.
 It uses the app's bundled runtime and SQLite binding. Add `~/.local/bin` to PATH if necessary;
 Snips never edits shell profiles or replaces an unrelated executable. Moving the app requires Repair.
 Source use: `node app/cli/index.js`. `SNIPS_DATA_DIR` selects an existing initialized data directory.

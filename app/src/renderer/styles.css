@@ -116,7 +116,7 @@ body {
 	height: 100vh;
 }
 
-.sidebar-toggle {
+.icon-only.sidebar-toggle {
 	position: fixed;
 	top: 7px;
 	left: 220px;
@@ -128,10 +128,6 @@ body {
 
 .app-shell.sidebar-collapsed {
 	grid-template-columns: minmax(0, 1fr);
-}
-
-.sidebar-collapsed .main-column {
-	padding-top: 46px;
 }
 
 .sidebar-collapsed .sidebar-toggle {
@@ -240,8 +236,8 @@ body {
 
 .user-actions {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 6px;
 }
 
 .stats-controls {
@@ -799,10 +795,6 @@ body {
 	margin-top: 6px;
 }
 
-.status-card.collapsed {
-	display: none;
-}
-
 .status-actions {
 	margin-top: 8px;
 	display: grid;
@@ -825,7 +817,7 @@ body {
 .main-column {
 	min-width: 0;
 	display: grid;
-	grid-template-rows: auto 1fr;
+	grid-template-rows: minmax(0, 1fr);
 	gap: 12px;
 	padding: 8px 12px 12px 12px;
 	min-height: 0;
@@ -998,34 +990,6 @@ body {
 	font-weight: 700;
 }
 
-.status-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	user-select: none;
-	color: var(--text);
-	-webkit-app-region: no-drag;
-}
-
-.status-header .chevron {
-	display: inline-flex;
-	width: 36px;
-	height: 32px;
-	align-items: center;
-	justify-content: center;
-}
-
-.chevron {
-	font-size: 12px;
-	color: inherit;
-}
-
-.chevron svg {
-	color: inherit;
-	width: 16px;
-	height: 16px;
-}
-
 .modal {
 	position: fixed;
 	top: 0;
@@ -1086,10 +1050,6 @@ textarea,
 	-webkit-app-region: no-drag;
 }
 
-.status-actions.collapsed {
-	display: none;
-}
-
 .toolbar input {
 	flex: 1;
 }
@@ -1121,6 +1081,7 @@ textarea,
 }
 
 .snippet-list-header {
+	flex-wrap: wrap;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1129,6 +1090,8 @@ textarea,
 }
 
 .snippet-list-title {
+	white-space: nowrap;
+	flex-shrink: 0;
 	font-weight: 700;
 }
 
@@ -1403,12 +1366,82 @@ dialog pre {
 }
 .snippet-item {
 	display: grid;
-	grid-template-columns: 18px minmax(0, 1fr);
-	gap: 6px;
+	grid-template-columns: 0px minmax(0, 1fr);
+	column-gap: 0;
+	transition:
+		grid-template-columns 160ms ease,
+		column-gap 160ms ease;
 	align-items: center;
 }
 .snippet-item > input[type='checkbox'] {
 	width: 14px;
 	height: 14px;
 	margin: 0;
+}
+
+/* Keep titlebar controls inside the list column without moving either column on collapse. */
+.titlebar-drag {
+	right: auto;
+	width: 260px;
+}
+body:has(.sidebar-collapsed) .titlebar-drag {
+	width: 120px;
+}
+.snippet-list-wrap {
+	padding-top: 38px;
+}
+.icon-only.sidebar-toggle,
+.section-row #newGroupBtn.icon-only {
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+}
+.icon-only.sidebar-toggle .icon,
+.icon-only.sidebar-toggle svg,
+#newGroupBtn .icon,
+#newGroupBtn svg {
+	width: 16px;
+	height: 16px;
+	color: var(--text);
+}
+.icon-only.sidebar-toggle:hover {
+	background: var(--accent-soft);
+}
+[hidden] {
+	display: none !important;
+}
+.status-actions {
+	grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+#statusView .status-card {
+	margin-top: 12px;
+}
+.snippet-item > input[type='checkbox'] {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 160ms ease;
+}
+.snippet-item:hover,
+.snippet-item:focus-within,
+.snippet-item:has(> input:checked) {
+	grid-template-columns: 14px minmax(0, 1fr);
+	column-gap: 6px;
+}
+.snippet-item:hover > input,
+.snippet-item:focus-within > input,
+.snippet-item > input:checked {
+	opacity: 1;
+	pointer-events: auto;
+}
+.snippet-item:focus-within .snippet-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+	.snippet-item,
+	.snippet-item > input[type='checkbox'] {
+		transition: none;
+	}
 }
