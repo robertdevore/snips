@@ -63,7 +63,7 @@
 	"devDependencies": {
 		"electron": "41.10.3",
 		"electron-builder": "^26.0.12",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.12"
 	},
 	"dependencies": {
 		"better-sqlite3": "^13.0.3"
